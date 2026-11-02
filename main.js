@@ -12,6 +12,10 @@ process.on('uncaughtException', (err) => {
     console.warn('[UncaughtException 安全拦截]', err.message);
 });
 
+// 启用局域网直接暴露真实物理 IP（禁用 mDNS 遮蔽），确保跨电脑 OBS 秒级直连
+app.commandLine.appendSwitch('disable-features', 'WebRtcHideLocalIpsWithMdns');
+app.commandLine.appendSwitch('use-fake-ui-for-media-stream');
+
 const CONFIG_PATH = path.join(__dirname, 'config.json');
 
 // ====================== 1. 局域网 OBS 推流服务 ======================
@@ -43,6 +47,10 @@ function getLocalIP() {
 const localIP = getLocalIP();
 let mainWindow = null;
 
+// OBS 局域网推流客户端管理 (支持多客户端、独立会话隔离)
+let viduHostClient = null;
+const obsClients = new Map(); // clientId -> { ws, ip }
+
 server.on('error', (err) => {
     if (err.code === 'EADDRINUSE') {
         console.log(`[Bridge Server] 端口 ${PORT} 已有实例在运行，直接复用连接。`);
@@ -53,12 +61,159 @@ server.on('error', (err) => {
 
 try {
     wss = new WebSocket.Server({ server });
+
+    wss.on('connection', (ws, req) => {
+        const url = req.url || '';
+        let clientIP = req.socket.remoteAddress || '';
+        if (clientIP.startsWith('::ffff:')) clientIP = clientIP.replace('::ffff:', '');
+        if (clientIP === '::1') clientIP = '127.0.0.1';
+
+        console.log(`[WS] 收到新连接: ${url} 来自 IP: ${clientIP}`);
+
+        if (url.includes('role=vidu-host')) {
+            viduHostClient = ws;
+            console.log('[WS] Vidu 宿主端流媒体中继已连接！就绪准备向 OBS 转发。');
+
+            if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.webContents.send('obs-log', '🎉 Vidu 数字人音视频推流中继已就绪！');
+            }
+
+            // 如果已有 OBS 客户端在线，通知宿主逐一建立 WebRTC 实例
+            if (obsClients.size > 0) {
+                console.log(`[WS] 检测到已有 ${obsClients.size} 个 OBS 客户端在线，触发定向推流...`);
+                for (const [cId, client] of obsClients.entries()) {
+                    ws.send(JSON.stringify({ type: 'obs-ready', clientId: cId, clientIP: client.ip }));
+                }
+            }
+
+            ws.on('message', (message) => {
+                try {
+                    const data = JSON.parse(message);
+                    if (data.type === 'signal-offer' || data.type === 'signal-ice') {
+                        // 精准定向推送到特定的 OBS 客户端
+                        if (data.clientId) {
+                            const target = obsClients.get(data.clientId);
+                            if (target && target.ws.readyState === WebSocket.OPEN) {
+                                target.ws.send(JSON.stringify(data));
+                            }
+                        } else {
+                            // 兼容兜底广播
+                            for (const [cId, target] of obsClients.entries()) {
+                                if (target.ws.readyState === WebSocket.OPEN) {
+                                    target.ws.send(JSON.stringify({ ...data, clientId: cId }));
+                                }
+                            }
+                        }
+                    } else if (data.type === 'stream-ready') {
+                        // 宿主音频/视频流已真正起播，通知所有 OBS 客户端发起连接
+                        for (const [cId, client] of obsClients.entries()) {
+                            ws.send(JSON.stringify({ type: 'obs-ready', clientId: cId, clientIP: client.ip }));
+                        }
+                    }
+                } catch (e) {
+                    console.error('[WS] 解析宿主消息失败:', e);
+                }
+            });
+
+            ws.on('close', () => {
+                console.log('[WS] Vidu 宿主端已断开连接');
+                viduHostClient = null;
+            });
+        } else if (url.includes('role=obs')) {
+            const clientId = 'obs_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6);
+            obsClients.set(clientId, { ws, ip: clientIP });
+            console.log(`[WS] 局域网 OBS 客户端接入 [${clientId}] (IP: ${clientIP})，当前在线数: ${obsClients.size}`);
+
+            if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.webContents.send('obs-log', `📡 局域网 OBS 浏览器源已接入！[${clientId}] (IP: ${clientIP}) 当前在线数: ${obsClients.size}`);
+            }
+
+            // 发送初始化消息给该 OBS 客户端
+            ws.send(JSON.stringify({
+                type: 'init',
+                clientId: clientId,
+                hostIP: localIP
+            }));
+
+            // 通知宿主为该客户端单独开启 WebRTC 实例
+            if (viduHostClient && viduHostClient.readyState === WebSocket.OPEN) {
+                viduHostClient.send(JSON.stringify({
+                    type: 'obs-ready',
+                    clientId: clientId,
+                    clientIP: clientIP
+                }));
+            }
+
+            ws.on('message', (message) => {
+                try {
+                    const data = JSON.parse(message);
+                    data.clientId = clientId;
+
+                    // 修复局域网 mDNS .local 候选地址：替换为客户端的实际物理局域网 IP
+                    if (data.type === 'signal-ice' && data.candidate && data.candidate.candidate) {
+                        if (data.candidate.candidate.includes('.local') && clientIP && !clientIP.startsWith('127.')) {
+                            data.candidate.candidate = data.candidate.candidate.replace(/[a-zA-Z0-9-]+\.local/g, clientIP);
+                        }
+                    }
+
+                    // 转发给宿主
+                    if (viduHostClient && viduHostClient.readyState === WebSocket.OPEN) {
+                        viduHostClient.send(JSON.stringify(data));
+                    }
+                } catch (e) {
+                    console.error('[WS] 转发 OBS 信令失败:', e);
+                }
+            });
+
+            ws.on('close', () => {
+                obsClients.delete(clientId);
+                console.log(`[WS] OBS 浏览器源 [${clientId}] 断开。剩余 OBS 数: ${obsClients.size}`);
+                if (viduHostClient && viduHostClient.readyState === WebSocket.OPEN) {
+                    viduHostClient.send(JSON.stringify({ type: 'obs-disconnected', clientId: clientId }));
+                }
+                if (mainWindow && !mainWindow.isDestroyed()) {
+                    mainWindow.webContents.send('obs-log', `⚠️ OBS 浏览器源 [${clientId}] 断开。剩余在线数: ${obsClients.size}`);
+                }
+            });
+        }
+    });
+
     server.listen(PORT, '0.0.0.0', () => {
         console.log(`[Bridge Server] OBS 推流服务已启动: http://${localIP}:${PORT}/obs.html`);
     });
 } catch (e) {
     console.log(`[Bridge Server] 端口 ${PORT} 监听忽略异常:`, e.message);
 }
+
+// HTTP API 接口
+serverApp.post('/api/chat', (req, res) => {
+    const { text, username } = req.body;
+    if (!text) return res.status(400).json({ code: -1, msg: '缺少 text 参数' });
+    if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.executeJavaScript(`triggerInput(${JSON.stringify(text)})`);
+        return res.json({ code: 0, msg: '已通过工作台注入弹幕' });
+    }
+    res.status(503).json({ code: -2, msg: '工作台窗口未就绪' });
+});
+
+serverApp.post('/api/action', (req, res) => {
+    const { action } = req.body;
+    if (!action) return res.status(400).json({ code: -1, msg: '缺少 action 参数' });
+    if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.executeJavaScript(`triggerInput(${JSON.stringify(action)})`);
+        return res.json({ code: 0, msg: `已触发动作: ${action}` });
+    }
+    res.status(503).json({ code: -2, msg: '工作台窗口未就绪' });
+});
+
+serverApp.get('/api/status', (req, res) => {
+    res.json({
+        viduOnline: !!viduHostClient && viduHostClient.readyState === WebSocket.OPEN,
+        obsClients: obsClients.size,
+        localIP: localIP,
+        obsUrl: `http://${localIP}:${PORT}/obs.html`
+    });
+});
 
 // 统一请求头（模拟标准 Chrome，保证 Vidu 网关 100% 鉴权放行）
 const COMMON_HEADERS = {
@@ -365,7 +520,7 @@ function createWindow() {
             autoAuth: autoAuth
         });
 
-        if (process.env.AUTO_TEST === '1') {
+        if (process.env.AUTO_TEST && process.env.AUTO_TEST.trim() === '1') {
             const ARTIFACT_DIR = 'C:\\Users\\robin\\.gemini\\antigravity\\brain\\3dcac64b-6340-4875-8002-a5babf441d69';
             console.log('[AUTO_TEST] 开始自动化验证流程...');
             await new Promise(r => setTimeout(r, 2000));
@@ -418,6 +573,55 @@ function createWindow() {
             img = await mainWindow.webContents.capturePage();
             fs.writeFileSync(path.join(ARTIFACT_DIR, 'verified-step2-live-video.png'), img.toPNG());
             console.log('[AUTO_TEST] 截图 2: 纯净 9:16 数字人视频画面已捕获');
+
+            // 3.1 验证 OBS 局域网 WebRTC 拉流 (模拟另一台电脑打开 obs.html)
+            console.log('[AUTO_TEST] 打开 OBS 浏览器源窗口验证跨端推流...');
+            const obsWin = new BrowserWindow({
+                width: 540,
+                height: 960,
+                show: true,
+                backgroundColor: '#000',
+                webPreferences: {
+                    webSecurity: false
+                }
+            });
+            obsWin.webContents.on('console-message', (e, level, msg) => {
+                console.log('[OBS PAGE LOG]', msg);
+            });
+            await obsWin.loadURL(`http://127.0.0.1:${PORT}/obs.html`);
+            
+            // 等待 OBS 握手与首帧渲染 (最多 10 秒)
+            let obsStreamReady = false;
+            for (let obsSec = 1; obsSec <= 10; obsSec++) {
+                await new Promise(r => setTimeout(r, 1000));
+                const obsState = await obsWin.webContents.executeJavaScript(`
+                    (function() {
+                        const v = document.getElementById('remote-video');
+                        const pc = window.pc;
+                        return {
+                            hasStream: !!(v && v.srcObject),
+                            w: v ? v.videoWidth : 0,
+                            h: v ? v.videoHeight : 0,
+                            paused: v ? v.paused : true,
+                            currentTime: v ? v.currentTime : 0,
+                            pcState: pc ? pc.connectionState : 'none',
+                            iceState: pc ? pc.iceConnectionState : 'none'
+                        };
+                    })()
+                `);
+                console.log(`[AUTO_TEST] OBS 端检测 [${obsSec}s]:`, JSON.stringify(obsState));
+                if (obsState && obsState.w > 0 && obsState.currentTime > 0) {
+                    obsStreamReady = true;
+                    console.log(`[AUTO_TEST] 🎉 OBS 成功接收到 WebRTC 纯净视频流！分辨率: ${obsState.w}x${obsState.h}`);
+                    break;
+                }
+            }
+
+            // 截图 OBS 接收画面
+            let obsImg = await obsWin.webContents.capturePage();
+            fs.writeFileSync(path.join(ARTIFACT_DIR, 'verified-obs-received-stream.png'), obsImg.toPNG());
+            console.log('[AUTO_TEST] 已保存 OBS 实测画面截图: verified-obs-received-stream.png');
+            obsWin.close();
 
             // 4. 发送弹幕
             console.log('[AUTO_TEST] 发送弹幕测试...');

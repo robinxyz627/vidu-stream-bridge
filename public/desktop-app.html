@@ -545,6 +545,10 @@
             }
         }
 
+        ipcRenderer.on('obs-log', (event, msg) => {
+            appendLog(msg);
+        });
+
         ipcRenderer.on('init-data', (event, data) => {
             obsUrlEl.innerText = data.obsUrl;
             appendLog(`OBS 局域网推流通道已开启: ${data.obsUrl}`);
@@ -641,6 +645,16 @@
             }
             webview.executeJavaScript(`
                 (function() {
+                    window.__obs_bridge_active = false;
+                    if (window.__peerConnections) {
+                        for (const [id, pc] of window.__peerConnections.entries()) {
+                            try { pc.close(); } catch(e) {}
+                        }
+                        window.__peerConnections.clear();
+                    }
+                    if (window.__currentPC) {
+                        try { window.__currentPC.close(); } catch(e) {}
+                    }
                     const hangupBtn = document.querySelector('button[aria-label="挂断"]');
                     if (hangupBtn) {
                         hangupBtn.click();
@@ -699,10 +713,201 @@
                         clearInterval(purifyInterval);
                         purifyInterval = null;
                         appendLog(`🎥 纯净视频流已就绪！原始分辨率: ${status.width}x${status.height} (无水印/无计时/纯净原生)`);
+                        injectOBSBridge();
                     }
                 } catch (e) {}
             }, 800);
         });
+
+        // 注入 OBS 局域网 WebRTC 实时中继推流器 (支持多 OBS 客户端隔离、音视频轨道聚合与队列缓存)
+        function injectOBSBridge() {
+            appendLog('正在建立 OBS 跨电脑局域网推流转发通道...');
+            webview.executeJavaScript(`
+                (function() {
+                    if (window.__obs_bridge_active) return;
+                    window.__obs_bridge_active = true;
+
+                    const WS_URL = 'ws://127.0.0.1:8888/?role=vidu-host';
+                    let ws = null;
+                    const peerConnections = new Map(); // clientId -> RTCPeerConnection
+                    const candidateQueues = new Map(); // clientId -> []
+                    window.__peerConnections = peerConnections;
+
+                    // 聚合数字人视频轨道 (来自 video) 与音频轨道 (来自 audio)
+                    function getLiveTracks() {
+                        const videos = Array.from(document.querySelectorAll('video'));
+                        const rv = videos.find(v => v.videoWidth > 0 && v.srcObject) || videos.find(v => v.srcObject) || videos[1] || videos[0];
+                        const audios = Array.from(document.querySelectorAll('audio'));
+                        const ra = audios.find(a => a.srcObject && a.srcObject.getAudioTracks().length > 0) || audios[0];
+
+                        const tracks = [];
+                        if (rv && rv.srcObject) {
+                            rv.srcObject.getVideoTracks().forEach(t => tracks.push(t));
+                        }
+                        // 如果 srcObject 尚未提供 video 轨道，尝试通过 captureStream 捕获画面
+                        if (!tracks.some(t => t.kind === 'video') && rv && typeof rv.captureStream === 'function') {
+                            try {
+                                const cap = rv.captureStream(30);
+                                cap.getVideoTracks().forEach(t => tracks.push(t));
+                            } catch(e) {}
+                        }
+                        // 提取数字人说话声音 (来自 audio 元素)
+                        if (ra && ra.srcObject) {
+                            ra.srcObject.getAudioTracks().forEach(t => tracks.push(t));
+                        }
+                        // 如果 video 元素自身也带音频轨道，合并加入
+                        if (rv && rv.srcObject) {
+                            rv.srcObject.getAudioTracks().forEach(t => {
+                                if (!tracks.includes(t)) tracks.push(t);
+                            });
+                        }
+
+                        const hasVideo = tracks.some(t => t.kind === 'video');
+                        const hasAudio = tracks.some(t => t.kind === 'audio');
+                        const videoActive = rv ? (rv.videoWidth > 0 && !rv.paused) : false;
+
+                        return { tracks, hasVideo, hasAudio, videoActive, rv, ra };
+                    }
+
+                    // 确保数字人视频流已真正起播
+                    async function waitForStreamReady() {
+                        for (let i = 0; i < 25; i++) {
+                            const info = getLiveTracks();
+                            if (info.hasVideo && info.videoActive) {
+                                return true;
+                            }
+                            await new Promise(r => setTimeout(r, 400));
+                        }
+                        return false;
+                    }
+
+                    // 为特定的 OBS 客户端创建专属 WebRTC PeerConnection
+                    async function createOfferForClient(clientId, clientIP) {
+                        console.log('[Bridge] 正在为 OBS 客户端 [' + clientId + '] 准备推流...');
+                        const ready = await waitForStreamReady();
+                        if (!ready) {
+                            console.warn('[Bridge] 等待数字人视频就绪超时，推流中断');
+                            return;
+                        }
+
+                        // 如果已存在同名会话，先安全关闭
+                        if (peerConnections.has(clientId)) {
+                            try { peerConnections.get(clientId).close(); } catch(e) {}
+                            peerConnections.delete(clientId);
+                        }
+
+                        const pc = new RTCPeerConnection({
+                            iceServers: [
+                                { urls: 'stun:stun.l.google.com:19302' },
+                                { urls: 'stun:stun1.l.google.com:19302' }
+                            ]
+                        });
+                        peerConnections.set(clientId, pc);
+                        candidateQueues.set(clientId, []);
+
+                        const info = getLiveTracks();
+                        const outStream = new MediaStream();
+                        info.tracks.forEach(track => {
+                            outStream.addTrack(track);
+                            pc.addTrack(track, outStream);
+                            console.log('[Bridge -> ' + clientId + '] 送入轨道:', track.kind, track.label);
+                        });
+
+                        pc.onicecandidate = (event) => {
+                            if (event.candidate && ws && ws.readyState === WebSocket.OPEN) {
+                                ws.send(JSON.stringify({
+                                    type: 'signal-ice',
+                                    clientId: clientId,
+                                    candidate: event.candidate
+                                }));
+                            }
+                        };
+
+                        pc.onconnectionstatechange = () => {
+                            console.log('[Bridge -> ' + clientId + '] 连接状态变更为:', pc.connectionState);
+                        };
+
+                        const offer = await pc.createOffer();
+                        await pc.setLocalDescription(offer);
+
+                        if (ws && ws.readyState === WebSocket.OPEN) {
+                            ws.send(JSON.stringify({
+                                type: 'signal-offer',
+                                clientId: clientId,
+                                offer: offer
+                            }));
+                            console.log('[Bridge -> ' + clientId + '] 已发送 WebRTC Offer！轨道总数:', info.tracks.length);
+                        }
+                    }
+
+                    function connectWS() {
+                        try {
+                            ws = new WebSocket(WS_URL);
+                        } catch(e) {
+                            setTimeout(connectWS, 2500);
+                            return;
+                        }
+
+                        ws.onopen = () => {
+                            console.log('[Bridge] 成功连接至本地推流中继！');
+                            ws.send(JSON.stringify({ type: 'stream-ready' }));
+                        };
+
+                        ws.onmessage = async (event) => {
+                            try {
+                                const data = JSON.parse(event.data);
+                                const clientId = data.clientId;
+
+                                if (data.type === 'obs-ready') {
+                                    console.log('[Bridge] 收到 OBS 就绪信号: [' + clientId + ']');
+                                    await createOfferForClient(clientId, data.clientIP);
+                                } else if (data.type === 'signal-answer') {
+                                    const pc = peerConnections.get(clientId);
+                                    if (pc && data.answer) {
+                                        await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
+                                        console.log('[Bridge -> ' + clientId + '] OBS WebRTC 握手成功！画面与声音正在实时传输！');
+
+                                        // 冲刷队列中的 ICE 候选地址
+                                        const queue = candidateQueues.get(clientId) || [];
+                                        for (const cand of queue) {
+                                            try { await pc.addIceCandidate(new RTCIceCandidate(cand)); } catch(e) {}
+                                        }
+                                        candidateQueues.set(clientId, []);
+                                    }
+                                } else if (data.type === 'signal-ice') {
+                                    const pc = peerConnections.get(clientId);
+                                    if (pc && data.candidate) {
+                                        if (pc.remoteDescription && pc.remoteDescription.type) {
+                                            try { await pc.addIceCandidate(new RTCIceCandidate(data.candidate)); } catch(e) {}
+                                        } else {
+                                            const queue = candidateQueues.get(clientId) || [];
+                                            queue.push(data.candidate);
+                                            candidateQueues.set(clientId, queue);
+                                        }
+                                    }
+                                } else if (data.type === 'obs-disconnected') {
+                                    const pc = peerConnections.get(clientId);
+                                    if (pc) {
+                                        try { pc.close(); } catch(e) {}
+                                        peerConnections.delete(clientId);
+                                        candidateQueues.delete(clientId);
+                                        console.log('[Bridge] OBS 会话清理完毕: [' + clientId + ']');
+                                    }
+                                }
+                            } catch(e) {
+                                console.error('[Bridge] 处理消息异常:', e);
+                            }
+                        };
+
+                        ws.onclose = () => {
+                            setTimeout(connectWS, 2500);
+                        };
+                    }
+
+                    connectWS();
+                })();
+            `);
+        }
 
         // 弹幕输入与动作指令
         function sendChat() {
