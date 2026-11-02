@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vidu 数字人中继控制台 & 弹幕互动调试</title>
+    <style>
+        :root {
+            --bg-primary: #12141a;
+            --bg-secondary: #1a1e27;
+            --bg-card: #232836;
+            --accent: #00d2ff;
+            --accent-green: #00e676;
+            --text-primary: #f0f4f8;
+            --text-secondary: #94a3b8;
+            --border-color: #333a4d;
+        }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", sans-serif;
+        }
+        body {
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 16px;
+        }
+        h1 {
+            font-size: 20px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .status-badge {
+            font-size: 13px;
+            padding: 4px 12px;
+            border-radius: 20px;
+            background: rgba(255, 255, 255, 0.08);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: #ef4444;
+        }
+        .status-dot.online {
+            background-color: var(--accent-green);
+            box-shadow: 0 0 8px var(--accent-green);
+        }
+        .main-grid {
+            display: grid;
+            grid-template-columns: 380px 1fr;
+            gap: 20px;
+            flex: 1;
+        }
+        .card {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        .card-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--accent);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .info-box {
+            background: var(--bg-card);
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 13px;
+            line-height: 1.6;
+            word-break: break-all;
+        }
+        .info-box code {
+            color: #38bdf8;
+            user-select: all;
+            cursor: pointer;
+        }
+        .btn {
+            background: var(--accent);
+            color: #000;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+        .btn-secondary {
+            background: var(--bg-card);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+        .btn-secondary:hover {
+            background: #2e3547;
+        }
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .input-group label {
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+        input, textarea {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 10px 14px;
+            color: #fff;
+            outline: none;
+            font-size: 14px;
+        }
+        input:focus, textarea:focus {
+            border-color: var(--accent);
+        }
+        .action-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .tag-btn {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .tag-btn:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+        .log-box {
+            background: #0d1117;
+            border: 1px solid #21262d;
+            border-radius: 8px;
+            padding: 12px;
+            flex: 1;
+            font-family: "Fira Code", Consolas, monospace;
+            font-size: 12px;
+            overflow-y: auto;
+            max-height: 280px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .log-item {
+            color: #8b949e;
+        }
+        .log-item.success { color: #56d364; }
+        .log-item.info { color: #58a6ff; }
+        .log-item.warn { color: #f0883e; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>
+            <span>🎭</span> Vidu S2 数字人中继控制台
+        </h1>
+        <div class="status-badge">
+            <span class="status-dot" id="vidu-status-dot"></span>
+            <span id="vidu-status-text">宿主端: 未连接</span>
+            <span style="margin: 0 4px; opacity: 0.3;">|</span>
+            <span id="obs-count-text">OBS 客户端: 0 台</span>
+        </div>
+    </header>
+
+    <div class="main-grid">
+        <!-- 左侧：OBS 局域网接入指南与状态 -->
+        <div class="card">
+            <div class="card-title">📡 OBS 采集配置 (另一台电脑)</div>
+            <div class="info-box">
+                在另一台电脑的 OBS 中添加 <b>浏览器源 (Browser Source)</b>：<br><br>
+                <b>URL:</b> <code id="obs-url-display" onclick="copyText(this)">正在获取...</code><br>
+                <b>宽度:</b> <code>1080</code> (竖屏建议 1080x1920，横屏建议 1920x1080)<br>
+                <b>高度:</b> <code>1920</code> (画面已全自适应 contain 居中)<br>
+                <b>勾选:</b> [√] 通过 OBS 控制音频 (直接混音)
+            </div>
+
+            <div class="card-title" style="margin-top: 10px;">🔌 抖音弹幕/外部接口调用 (API)</div>
+            <div class="info-box">
+                你的抖音弹幕抓取助手只需 POST 该地址：<br>
+                <code>POST /api/chat</code><br>
+                JSON: <code>{"text": "弹幕内容", "username": "张三"}</code>
+            </div>
+
+            <button class="btn btn-secondary" onclick="window.open('/obs.html', '_blank')">在新标签页中预览 OBS 纯净画面</button>
+        </div>
+
+        <!-- 右侧：弹幕互动与动作干预测试面板 -->
+        <div class="card">
+            <div class="card-title">⚡ 弹幕互动 / 口播对话测试</div>
+            <div class="input-group">
+                <label>模拟观众弹幕发文字 (调用千问 TTS + 大模型回复)</label>
+                <div style="display: flex; gap: 10px;">
+                    <input type="text" id="chat-input" placeholder="输入对话内容，如：主播你好，介绍一下你自己吧" style="flex: 1;" onkeydown="if(event.key==='Enter') sendChat()">
+                    <button class="btn" onclick="sendChat()">发送弹幕</button>
+                </div>
+            </div>
+
+            <div class="card-title" style="margin-top: 10px;">💃 实时动作干预 (Vidu S2 Mid-Stream Action)</div>
+            <div class="input-group">
+                <label>点击预设动作指令或自定义动作</label>
+                <div class="action-tags">
+                    <button class="tag-btn" onclick="sendAction('比剪刀手')">✌️ 比个剪刀手</button>
+                    <button class="tag-btn" onclick="sendAction('打招呼挥手')">👋 挥手打招呼</button>
+                    <button class="tag-btn" onclick="sendAction('眨一下眼睛')">😉 眨眼放电</button>
+                    <button class="tag-btn" onclick="sendAction('双手比心')">💖 双手比心</button>
+                    <button class="tag-btn" onclick="sendAction('戴上墨镜')">🕶️ 戴上墨镜</button>
+                    <button class="tag-btn" onclick="sendAction('开心微笑')">😊 开心微笑</button>
+                </div>
+                <div style="display: flex; gap: 10px; margin-top: 8px;">
+                    <input type="text" id="custom-action-input" placeholder="输入自定义动作指令，如：双手托腮" style="flex: 1;" onkeydown="if(event.key==='Enter') sendCustomAction()">
+                    <button class="btn btn-secondary" onclick="sendCustomAction()">执行动作</button>
+                </div>
+            </div>
+
+            <div class="card-title" style="margin-top: 10px;">📋 交互日志</div>
+            <div class="log-box" id="log-box">
+                <div class="log-item info">[系统] 控制台已加载，等待中继通信...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const statusDot = document.getElementById('vidu-status-dot');
+        const statusText = document.getElementById('vidu-status-text');
+        const obsCountText = document.getElementById('obs-count-text');
+        const obsUrlDisplay = document.getElementById('obs-url-display');
+        const logBox = document.getElementById('log-box');
+
+        function appendLog(msg, level = 'info') {
+            const time = new Date().toLocaleTimeString();
+            const div = document.createElement('div');
+            div.className = `log-item ${level}`;
+            div.innerText = `[${time}] ${msg}`;
+            logBox.appendChild(div);
+            logBox.scrollTop = logBox.scrollHeight;
+        }
+
+        function copyText(el) {
+            navigator.clipboard.writeText(el.innerText).then(() => {
+                appendLog('OBS URL 已复制到剪贴板！', 'success');
+            });
+        }
+
+        // 连接中继 WebSocket
+        const wsProto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const ws = new WebSocket(`${wsProto}//${location.host}/?role=controller`);
+
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            if (data.type === 'bridge-status') {
+                if (data.viduOnline) {
+                    statusDot.className = 'status-dot online';
+                    statusText.innerText = '宿主端: 在线 (推流中)';
+                } else {
+                    statusDot.className = 'status-dot';
+                    statusText.innerText = '宿主端: 未连接';
+                }
+                obsCountText.innerText = `OBS 客户端: ${data.obsCount} 台`;
+                obsUrlDisplay.innerText = data.obsUrl;
+            }
+        };
+
+        async function sendChat() {
+            const input = document.getElementById('chat-input');
+            const text = input.value.trim();
+            if (!text) return;
+
+            try {
+                const res = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text, username: '测试观众' })
+                });
+                const result = await res.json();
+                if (result.code === 0) {
+                    appendLog(`发送弹幕成功: "${text}"`, 'success');
+                    input.value = '';
+                } else {
+                    appendLog(`发送失败: ${result.msg}`, 'warn');
+                }
+            } catch (e) {
+                appendLog(`请求异常: ${e.message}`, 'warn');
+            }
+        }
+
+        async function sendAction(action) {
+            try {
+                const res = await fetch('/api/action', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action })
+                });
+                const result = await res.json();
+                if (result.code === 0) {
+                    appendLog(`触发动作指令: [${action}]`, 'success');
+                } else {
+                    appendLog(`动作指令失败: ${result.msg}`, 'warn');
+                }
+            } catch (e) {
+                appendLog(`请求异常: ${e.message}`, 'warn');
+            }
+        }
+
+        function sendCustomAction() {
+            const input = document.getElementById('custom-action-input');
+            const action = input.value.trim();
+            if (!action) return;
+            sendAction(action);
+            input.value = '';
+        }
+    </script>
+</body>
+</html>

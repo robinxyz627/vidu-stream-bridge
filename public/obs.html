@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vidu 数字人 OBS 纯净源 (全比例自适应)</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: transparent; /* 默认透明，支持 OBS Alpha 通道或带背景混流 */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #video-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        /* 
+           无论传入的是 9:16 (竖屏)、16:9 (横屏)、1:1 (方屏)，
+           object-fit: contain 都会在 OBS 设置的任意画布尺寸下自动保持原始宽高比无畸变居中，
+           绝不会产生拉伸变形！
+        */
+        video {
+            max-width: 100%;
+            max-height: 100%;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            outline: none;
+            border: none;
+        }
+        /* 状态提示（只在未连上时显示，连上后自动消失，绝不污染直播） */
+        #status-overlay {
+            position: absolute;
+            color: #888;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            font-size: 18px;
+            letter-spacing: 1px;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 20px 30px;
+            border-radius: 12px;
+        }
+        .spinner {
+            width: 32px;
+            height: 32px;
+            border: 3px solid rgba(255,255,255,0.1);
+            border-top-color: #00e5ff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <div id="video-container">
+        <video id="remote-video" autoplay playsinline></video>
+        <div id="status-overlay">
+            <div class="spinner"></div>
+            <span id="status-text">等待 Vidu 数字人画面推送...</span>
+        </div>
+    </div>
+
+    <script>
+        const videoEl = document.getElementById('remote-video');
+        const statusOverlay = document.getElementById('status-overlay');
+        const statusText = document.getElementById('status-text');
+
+        const wsProto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${wsProto}//${location.host}/?role=obs`;
+
+        let pc = null;
+        let ws = null;
+
+        // 监听视频源的实际分辨率变化，便于调试
+        videoEl.onloadedmetadata = () => {
+            console.log(`[OBS] 视频流已就绪，原始画面分辨率: ${videoEl.videoWidth}x${videoEl.videoHeight} (宽高比: ${(videoEl.videoWidth / videoEl.videoHeight).toFixed(2)})`);
+        };
+
+        function connectWS() {
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                console.log('[OBS] WebSocket 已经连接到中继服务');
+                statusText.innerText = '中继服务已就绪，等待宿主视频流...';
+            };
+
+            ws.onmessage = async (event) => {
+                const data = JSON.parse(event.data);
+                if (data.type === 'signal-offer') {
+                    await handleOffer(data.offer);
+                } else if (data.type === 'signal-ice') {
+                    if (pc && data.candidate) {
+                        try {
+                            await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+                        } catch (e) {
+                            console.error('[OBS] 添加 ICE 候选失败:', e);
+                        }
+                    }
+                }
+            };
+
+            ws.onclose = () => {
+                console.log('[OBS] WebSocket 断开，3秒后重连...');
+                statusOverlay.classList.remove('hidden');
+                statusText.innerText = '中继服务连接断开，正在尝试重连...';
+                setTimeout(connectWS, 3000);
+            };
+        }
+
+        async function handleOffer(offer) {
+            if (pc) {
+                pc.close();
+            }
+
+            pc = new RTCPeerConnection({
+                iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+            });
+
+            pc.ontrack = (event) => {
+                console.log('[OBS] 捕获到数字人媒体轨:', event.track.kind);
+                if (videoEl.srcObject !== event.streams[0]) {
+                    videoEl.srcObject = event.streams[0];
+                    statusOverlay.classList.add('hidden');
+                }
+            };
+
+            pc.onicecandidate = (event) => {
+                if (event.candidate && ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({
+                        type: 'signal-ice',
+                        candidate: event.candidate
+                    }));
+                }
+            };
+
+            await pc.setRemoteDescription(new RTCSessionDescription(offer));
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+
+            ws.send(JSON.stringify({
+                type: 'signal-answer',
+                answer: answer
+            }));
+        }
+
+        connectWS();
+    </script>
+</body>
+</html>

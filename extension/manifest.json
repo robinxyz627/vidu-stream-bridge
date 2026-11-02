@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "Vidu S2 Pure Live Streamer",
+  "version": "1.0.0",
+  "description": "Vidu 数字人全自动纯净画面与 OBS 桥接扩展",
+  "content_scripts": [
+    {
+      "matches": ["*://*.vidu.cn/*"],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ]
+}
