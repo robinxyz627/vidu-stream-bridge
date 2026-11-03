@@ -80,8 +80,8 @@
 ### 2. 安装与运行
 ```bash
 # 1. 克隆本项目仓库
-git clone https://github.com/your-username/vidu-web.git
-cd vidu-web
+git clone https://github.com/robinxyz627/vidu-stream-bridge.git
+cd vidu-stream-bridge
 
 # 2. 安装项目依赖
 npm install
@@ -91,13 +91,32 @@ npm start
 # 或者双击运行根目录下的 start.bat
 ```
 
-### 3. 配置登录凭证 (首次使用)
-1. 启动工作台后，在右侧面板的 **🔑 凭证管理** 区域：
-   * 在输入框中粘贴你的 Vidu 登录 Cookie 或 JWT 字符串。
-   * 点击 **【⚡ 导入/更新凭证并写入本地永久保存】**。
-   * *(或直接点击窗口右上角的【窗口内扫码登录】通过手机扫码快速登录)*。
-2. 登录成功后，顶部状态条显示绿灯 `🟢 已激活: 用户名`，并自动加载出你的自定义数字人角色。
-3. 点击 **【🎥 开始纯净开播】**，数字人即进入全屏纯净视频渲染模式！
+### 3. 获取与配置登录凭证 (首次使用)
+
+你可以直接在工作台内点击【窗口内扫码登录】扫码授权，也可以从日常使用的浏览器中提取登录凭证（**JWT Cookie**）进行导入。
+
+#### 💡 如何使用 Cookie Editor 快速获取 JWT Cookie（图文指南）
+
+推荐通过主流浏览器扩展 **Cookie Editor**（如 Chrome / Edge 商店中的经典扩展）一键复制，步骤如下：
+
+1. **安装扩展**：在浏览器扩展应用商店（如 Chrome Web Store）搜索并安装 **Cookie Editor**。
+2. **登录官网**：在浏览器中打开并正常登录 [Vidu 官网服务台](https://service.vidu.cn)。
+3. **打开 Cookie 管理器**：点击浏览器工具栏上的 Cookie Editor 图标，呼出管理弹窗。
+4. **筛选并复制 JWT**：
+   * 在左上角搜索框中输入 `vidu` 进行域名与键名过滤。
+   * 点击展开 `service.vidu.cn` 域名树。
+   * 勾选并选中名为 **`JWT`** 的条目。
+   * 点击面板右下角的蓝色 **【Copy】** 按钮（或直接选中并复制右侧 `Value` 输入框内的完整字符串）。
+
+<div align="center">
+  <img src="docs/images/cookie-editor-jwt.png" alt="使用 Cookie Editor 提取 JWT Cookie 指引" width="750" />
+</div>
+
+5. **导入工作台**：
+   * 启动本软件，在工作台右侧面板的 **🔑 凭证管理** 输入框中粘贴刚复制的 JWT 字符串。
+   * 点击 **【⚡ 导入/更新凭证并写入本地永久保存】**（凭证将自动加密保存至本地 `config.json`，下次启动全自动静默免密登录）。
+   * 顶部状态条呈现绿灯 `🟢 已激活: 用户名`，并自动加载出你的自定义数字人角色。
+6. 点击 **【🎥 开始纯净开播】**，数字人即进入全屏纯净视频渲染模式！
 
 ---
 
@@ -269,6 +288,9 @@ vidu-web/
 ├── main.js                  # Electron 主进程、多端口 HTTP/WebSocket 服务与 IPC 通信调度
 ├── start.bat                # Windows 桌面端一键启动快捷脚本
 ├── package.json             # 项目元信息与依赖配置
+├── docs/                    # 文档资源与图文指引
+│   └── images/
+│       └── cookie-editor-jwt.png # Cookie Editor 提取 JWT 截图指引
 ├── examples/                # 弹幕对接测试示例库
 │   ├── mock_danmu_client.py # Python 3 标准库无依赖模拟推送客户端
 │   └── mock_danmu_client.js # Node.js 原生模拟推送客户端
