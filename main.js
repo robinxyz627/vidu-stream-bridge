@@ -185,6 +185,128 @@ try {
     console.log(`[Bridge Server] 端口 ${PORT} 监听忽略异常:`, e.message);
 }
 
+// ====================== 1.1 抖音直播伴侣弹幕中继服务 (端口 8010 /human) ======================
+const DANMU_PORT = 8010;
+const DANMU_CONFIG_PATH = path.join(__dirname, 'danmu_config.json');
+
+const DEFAULT_DANMU_CONFIG = {
+    enabled: true,
+    min_speech_interval: 6.5,
+    max_queue_size: 8,
+    ttl_seconds: 25,
+    gift_big_threshold: 50,
+    toggles: {
+        chat: true,
+        gift: true,
+        follow: true,
+        enter: false,
+        like: false
+    },
+    templates: {
+        chat: '观众【{nickname}】说：“{content}”。请回复ta，如果弹幕提及动作请配合做出相应动作。',
+        gift_big: '观众【{nickname}】送出了礼物【{giftName} x {giftCount}】！请向ta表达谢意并做出开心的互动动作！',
+        gift_small: '观众【{nickname}】送出了【{giftName} x {giftCount}】，请向ta表达感谢。',
+        follow: '观众【{nickname}】关注了你，请欢迎ta并打个招呼。',
+        enter: '欢迎观众【{nickname}】进入直播间，请向ta打个招呼。',
+        like: '观众【{nickname}】为你点了{count}个赞，请向ta道谢。'
+    }
+};
+
+function loadDanmuConfig() {
+    try {
+        if (fs.existsSync(DANMU_CONFIG_PATH)) {
+            const data = fs.readFileSync(DANMU_CONFIG_PATH, 'utf8');
+            const parsed = JSON.parse(data);
+            return {
+                ...DEFAULT_DANMU_CONFIG,
+                ...parsed,
+                toggles: { ...DEFAULT_DANMU_CONFIG.toggles, ...(parsed.toggles || {}) },
+                templates: { ...DEFAULT_DANMU_CONFIG.templates, ...(parsed.templates || {}) }
+            };
+        }
+    } catch(e) {
+        console.warn('[Danmu] 读取配置异常，使用默认:', e.message);
+    }
+    return DEFAULT_DANMU_CONFIG;
+}
+
+function saveDanmuConfig(cfg) {
+    try {
+        fs.writeFileSync(DANMU_CONFIG_PATH, JSON.stringify(cfg, null, 2), 'utf8');
+        return true;
+    } catch(e) {
+        console.error('[Danmu] 保存配置失败:', e.message);
+        return false;
+    }
+}
+
+ipcMain.handle('get-danmu-config', () => {
+    return loadDanmuConfig();
+});
+
+ipcMain.handle('save-danmu-config', (event, cfg) => {
+    const ok = saveDanmuConfig(cfg);
+    return { ok };
+});
+
+ipcMain.handle('reset-danmu-config', () => {
+    saveDanmuConfig(DEFAULT_DANMU_CONFIG);
+    return { ok: true, config: DEFAULT_DANMU_CONFIG };
+});
+
+function handleDanmuRequest(req, res) {
+    const body = req.body || {};
+    // 标准化事件格式
+    const event = {
+        id: 'dm_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+        type: body.type || (body.msgType === 5 ? 'gift' : 'chat'),
+        msgType: body.msgType || (body.type === 'gift' ? 5 : 1),
+        nickname: body.nickname || '热心观众',
+        gender: body.gender || '观众',
+        genderCode: body.genderCode || 0,
+        content: body.content || body.text || '',
+        giftName: body.giftName || body.gift_name || '',
+        giftCount: parseInt(body.giftCount || body.count || 1, 10),
+        diamondCount: parseInt(body.diamondCount || 0, 10),
+        likeCount: parseInt(body.likeCount || body.count || 1, 10),
+        timestamp: body.timestamp || Date.now(),
+        rawText: body.text || ''
+    };
+
+    console.log(`[Danmu Ingress] 收到互动: [${event.type}] ${event.nickname}: ${event.content || event.giftName || ''}`);
+
+    if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('incoming-danmu', event);
+    }
+
+    return res.json({ code: 0, msg: 'ok', id: event.id });
+}
+
+// 启动专用 8010 弹幕接入服务 (兼容笔记本直播伴侣转发器)
+const danmuApp = express();
+danmuApp.use(cors());
+danmuApp.use(express.json({ limit: '10mb' }));
+danmuApp.use(express.urlencoded({ extended: true }));
+
+danmuApp.post(['/human', '/api/danmu', '/chat'], handleDanmuRequest);
+serverApp.post(['/human', '/api/danmu'], handleDanmuRequest);
+
+let danmuServer = null;
+try {
+    danmuServer = danmuApp.listen(DANMU_PORT, '0.0.0.0', () => {
+        console.log(`[Danmu Ingress] 抖音直播伴侣弹幕中继已在 0.0.0.0:${DANMU_PORT}/human 启动！`);
+    });
+    danmuServer.on('error', (err) => {
+        if (err.code === 'EADDRINUSE') {
+            console.warn(`[Danmu Ingress] 端口 ${DANMU_PORT} 已被占用，亦可通过 8888/human 接收。`);
+        } else {
+            console.error('[Danmu Ingress] 启动异常:', err);
+        }
+    });
+} catch(e) {
+    console.warn('[Danmu Ingress] 监听忽略异常:', e.message);
+}
+
 // HTTP API 接口
 serverApp.post('/api/chat', (req, res) => {
     const { text, username } = req.body;
@@ -517,6 +639,8 @@ function createWindow() {
         mainWindow.webContents.send('init-data', {
             localIP: localIP,
             obsUrl: `http://${localIP}:${PORT}/obs.html`,
+            danmuPort: DANMU_PORT,
+            danmuConfig: loadDanmuConfig(),
             autoAuth: autoAuth
         });
 
@@ -638,9 +762,54 @@ function createWindow() {
                 sendAction('比剪刀手');
             `);
 
-            await new Promise(r => setTimeout(r, 2500));
+            await new Promise(r => setTimeout(r, 2000));
 
-            // 截图 3: 弹幕与动作交互完成
+            // 6. 验证 8010/human 弹幕中继与智能防爆冲调度系统
+            console.log('[AUTO_TEST] 开始验证 8010/human 弹幕中继与智能调度...');
+            const postDanmu = (payload) => {
+                return new Promise((resolve, reject) => {
+                    const req = http.request(`http://127.0.0.1:${DANMU_PORT}/human`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' }
+                    }, (res) => {
+                        let data = '';
+                        res.on('data', chunk => data += chunk);
+                        res.on('end', () => resolve(data));
+                    });
+                    req.on('error', reject);
+                    req.write(JSON.stringify(payload));
+                    req.end();
+                });
+            };
+
+            // 模拟连续涌入不同优先级的互动事件
+            console.log('[AUTO_TEST] 投递普通发言...');
+            await postDanmu({ type: 'chat', nickname: '小明', gender: '男', content: '小鱼今天好可爱呀！' });
+            
+            console.log('[AUTO_TEST] 投递水军词 (测试防爆冲过滤)...');
+            await postDanmu({ type: 'chat', nickname: '水军号', gender: '男', content: '666' });
+
+            console.log('[AUTO_TEST] 投递大额打赏 (P1 优先级插队测试)...');
+            await postDanmu({ type: 'gift', nickname: '榜一大哥', gender: '男', giftName: '嘉年华', giftCount: 1, diamondCount: 3000 });
+
+            console.log('[AUTO_TEST] 投递关注事件...');
+            await postDanmu({ type: 'follow', nickname: '新粉丝小美', gender: '女' });
+
+            // 展开引导词模板面板以便截图验证
+            await mainWindow.webContents.executeJavaScript(`
+                const box = document.getElementById('template-editor-box');
+                if (box) box.style.display = 'flex';
+            `);
+
+            // 等待 4 秒观察调度状态
+            await new Promise(r => setTimeout(r, 4000));
+
+            // 截图 4: 弹幕中继与智能调度控制面板实测
+            img = await mainWindow.webContents.capturePage();
+            fs.writeFileSync(path.join(ARTIFACT_DIR, 'verified-danmu-system.png'), img.toPNG());
+            console.log('[AUTO_TEST] 截图 4: 抖音弹幕智能中继与可配置模板面板已捕获: verified-danmu-system.png');
+
+            // 截图 3: 整体交互完成
             img = await mainWindow.webContents.capturePage();
             fs.writeFileSync(path.join(ARTIFACT_DIR, 'verified-step3-chat-and-action.png'), img.toPNG());
             console.log('[AUTO_TEST] 截图 3: 弹幕与动作交互完成并捕获');

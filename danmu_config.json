@@ -1,0 +1,22 @@
+{
+  "enabled": true,
+  "min_speech_interval": 6.5,
+  "max_queue_size": 8,
+  "ttl_seconds": 25,
+  "gift_big_threshold": 50,
+  "toggles": {
+    "chat": true,
+    "gift": true,
+    "follow": true,
+    "enter": false,
+    "like": false
+  },
+  "templates": {
+    "chat": "观众【{nickname}】说：“{content}”。请回复ta，如果弹幕提及动作请配合做出相应动作。",
+    "gift_big": "观众【{nickname}】送出了礼物【{giftName} x {giftCount}】！请向ta表达谢意并做出开心的互动动作！",
+    "gift_small": "观众【{nickname}】送出了【{giftName} x {giftCount}】，请向ta表达感谢。",
+    "follow": "观众【{nickname}】关注了你，请欢迎ta并打个招呼。",
+    "enter": "欢迎观众【{nickname}】进入直播间，请向ta打个招呼。",
+    "like": "观众【{nickname}】为你点了{count}个赞，请向ta道谢。"
+  }
+}

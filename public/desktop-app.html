@@ -398,6 +398,113 @@
                 </div>
             </div>
 
+            <!-- 2.5. 抖音直播伴侣弹幕中继 (智能防爆冲调度) -->
+            <div class="panel-title" style="justify-content: space-between;">
+                <span>📻 抖音直播伴侣弹幕中继</span>
+                <span id="danmu-status-pill" style="font-size: 11px; font-weight: normal; background: rgba(0,255,136,0.15); color: #00ff88; padding: 2px 8px; border-radius: 10px; border: 1px solid rgba(0,255,136,0.3);">
+                    🟢 8010 就绪 (待命)
+                </span>
+            </div>
+            <div class="card" id="danmu-card">
+                <!-- 顶部主开关与状态 -->
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-size: 12px; font-weight: bold; color: var(--text-main);">自动响应弹幕互动</span>
+                    <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 12px; color: var(--accent);">
+                        <input type="checkbox" id="danmu-main-switch" checked onchange="toggleDanmuMainSwitch(this.checked)" style="width: auto;">
+                        <span>启用接管</span>
+                    </label>
+                </div>
+
+                <!-- 事件类型分流过滤勾选 -->
+                <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 2px;">
+                    <label style="font-size: 11px; display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                        <input type="checkbox" id="toggle-chat" checked onchange="updateDanmuToggles()" style="width: auto;"> 💬 弹幕
+                    </label>
+                    <label style="font-size: 11px; display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                        <input type="checkbox" id="toggle-gift" checked onchange="updateDanmuToggles()" style="width: auto;"> 🎁 礼物
+                    </label>
+                    <label style="font-size: 11px; display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                        <input type="checkbox" id="toggle-follow" checked onchange="updateDanmuToggles()" style="width: auto;"> 💖 关注
+                    </label>
+                    <label style="font-size: 11px; display: flex; align-items: center; gap: 4px; cursor: pointer; color: var(--text-dim);">
+                        <input type="checkbox" id="toggle-enter" onchange="updateDanmuToggles()" style="width: auto;"> 🚪 进房
+                    </label>
+                    <label style="font-size: 11px; display: flex; align-items: center; gap: 4px; cursor: pointer; color: var(--text-dim);">
+                        <input type="checkbox" id="toggle-like" onchange="updateDanmuToggles()" style="width: auto;"> 👍 点赞
+                    </label>
+                </div>
+
+                <!-- 调度防爆冲参数 -->
+                <div style="display: flex; gap: 8px; align-items: center; margin-top: 2px; font-size: 11px; color: var(--text-dim);">
+                    <div style="flex: 1; display: flex; align-items: center; gap: 4px;">
+                        <span>话轮冷却:</span>
+                        <input type="number" id="danmu-interval-input" value="6.5" min="3" max="20" step="0.5" style="width: 52px; padding: 3px 5px;" onchange="saveDanmuParams()">
+                        <span>秒</span>
+                    </div>
+                    <div style="flex: 1; display: flex; align-items: center; gap: 4px;">
+                        <span>大礼阈值:</span>
+                        <input type="number" id="danmu-gift-threshold-input" value="50" min="1" max="10000" style="width: 55px; padding: 3px 5px;" onchange="saveDanmuParams()">
+                        <span>抖币</span>
+                    </div>
+                </div>
+
+                <!-- 折叠配置引导词模板 -->
+                <button class="btn" style="background: rgba(255,255,255,0.06); font-size: 11px; padding: 6px; justify-content: center; margin-top: 2px;" onclick="toggleTemplateEditor()">
+                    <span id="tpl-toggle-icon">⚙️</span> 自定义各模式引导词模板 (点击展开/折叠)
+                </button>
+
+                <div id="template-editor-box" style="display: none; flex-direction: column; gap: 8px; margin-top: 4px; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 6px;">
+                    <div>
+                        <div style="font-size: 11px; color: var(--accent); margin-bottom: 2px;">💬 普通弹幕发言引导模板:</div>
+                        <textarea id="tpl-chat" rows="2" style="font-size: 11px;"></textarea>
+                    </div>
+                    <div>
+                        <div style="font-size: 11px; color: var(--accent); margin-bottom: 2px;">🎁 大额礼物重点感谢模板:</div>
+                        <textarea id="tpl-gift-big" rows="2" style="font-size: 11px;"></textarea>
+                    </div>
+                    <div>
+                        <div style="font-size: 11px; color: var(--accent); margin-bottom: 2px;">🎁 日常小礼随和答谢模板:</div>
+                        <textarea id="tpl-gift-small" rows="2" style="font-size: 11px;"></textarea>
+                    </div>
+                    <div>
+                        <div style="font-size: 11px; color: var(--accent); margin-bottom: 2px;">💖 新增关注欢迎模板:</div>
+                        <textarea id="tpl-follow" rows="2" style="font-size: 11px;"></textarea>
+                    </div>
+                    <div>
+                        <div style="font-size: 11px; color: var(--accent); margin-bottom: 2px;">🚪 观众进房欢迎模板:</div>
+                        <textarea id="tpl-enter" rows="2" style="font-size: 11px;"></textarea>
+                    </div>
+                    <div>
+                        <div style="font-size: 11px; color: var(--accent); margin-bottom: 2px;">👍 连击点赞感谢模板:</div>
+                        <textarea id="tpl-like" rows="2" style="font-size: 11px;"></textarea>
+                    </div>
+                    <div style="font-size: 10px; color: var(--text-dim); line-height: 1.4;">
+                        可替换变量：<code>{nickname}</code>观众昵称、<code>{gender}</code>性别、<code>{content}</code>发言、<code>{giftName}</code>礼物名、<code>{giftCount}</code>数量、<code>{count}</code>赞数。
+                    </div>
+                    <div style="display: flex; gap: 8px; margin-top: 2px;">
+                        <button class="btn" style="flex: 1; background: var(--accent); color: #000; font-size: 11px; padding: 6px; justify-content: center;" onclick="saveTemplateChanges()">
+                            💾 保存所有模板
+                        </button>
+                        <button class="btn" style="flex: 1; background: rgba(255,255,255,0.08); color: #fff; font-size: 11px; padding: 6px; justify-content: center;" onclick="resetTemplatesToDefault()">
+                            🔄 恢复官方默认
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 实时弹幕接收流监控列表 -->
+                <div style="margin-top: 4px;">
+                    <div style="font-size: 11px; color: var(--text-dim); margin-bottom: 4px; display: flex; justify-content: space-between;">
+                        <span>实时弹幕监控流:</span>
+                        <span id="queue-status-text">排队: 0 | 待命</span>
+                    </div>
+                    <div id="danmu-feed-box" style="display: flex; flex-direction: column; gap: 4px; max-height: 85px; overflow-y: auto;">
+                        <div style="font-size: 11px; color: var(--text-dim); text-align: center; padding: 6px 0; background: rgba(0,0,0,0.2); border-radius: 4px;">
+                            等待笔记本直播伴侣接入推送 (8010/human)...
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- 3. 弹幕与动作交互 -->
             <div class="panel-title">💬 弹幕互动 / 动作干预</div>
             <div class="card">
@@ -552,6 +659,11 @@
         ipcRenderer.on('init-data', (event, data) => {
             obsUrlEl.innerText = data.obsUrl;
             appendLog(`OBS 局域网推流通道已开启: ${data.obsUrl}`);
+
+            // 初始化弹幕中继控制面板
+            if (data.danmuConfig) {
+                initDanmuUI(data.danmuConfig, data.danmuPort || 8010);
+            }
 
             // 自动加载持久化凭证
             if (data.autoAuth && data.autoAuth.ok) {
@@ -967,6 +1079,322 @@
                 appendLog(`❌ 发送指令异常: ${err.message}`);
             }
         }
+
+        // ====================== 5. 抖音直播伴侣弹幕中继 & 智能防爆冲调度系统 ======================
+        let currentDanmuConfig = null;
+        const danmuQueue = [];
+        let lastSpeechTime = 0;
+        let danmuPort = 8010;
+        const danmuDedupCache = new Map();
+        const IGNORE_WORDS = new Set(["666", "6666", "66666", "来了", "好", "好的", "赞", "点赞", "1", "111", "222", "滴滴", "前排", "打卡", "nb"]);
+
+        function initDanmuUI(cfg, port) {
+            currentDanmuConfig = cfg;
+            danmuPort = port || 8010;
+
+            document.getElementById('danmu-main-switch').checked = !!cfg.enabled;
+            if (cfg.toggles) {
+                document.getElementById('toggle-chat').checked = !!cfg.toggles.chat;
+                document.getElementById('toggle-gift').checked = !!cfg.toggles.gift;
+                document.getElementById('toggle-follow').checked = !!cfg.toggles.follow;
+                document.getElementById('toggle-enter').checked = !!cfg.toggles.enter;
+                document.getElementById('toggle-like').checked = !!cfg.toggles.like;
+            }
+            document.getElementById('danmu-interval-input').value = cfg.min_speech_interval || 6.5;
+            document.getElementById('danmu-gift-threshold-input').value = cfg.gift_big_threshold || 50;
+
+            if (cfg.templates) {
+                document.getElementById('tpl-chat').value = cfg.templates.chat || '';
+                document.getElementById('tpl-gift-big').value = cfg.templates.gift_big || '';
+                document.getElementById('tpl-gift-small').value = cfg.templates.gift_small || '';
+                document.getElementById('tpl-follow').value = cfg.templates.follow || '';
+                document.getElementById('tpl-enter').value = cfg.templates.enter || '';
+                document.getElementById('tpl-like').value = cfg.templates.like || '';
+            }
+
+            updateDanmuStatusPill();
+            appendLog(`📻 抖音弹幕接收中继已就绪: http://0.0.0.0:${danmuPort}/human (智能防爆冲队列运行中)`);
+        }
+
+        function updateDanmuStatusPill() {
+            const pill = document.getElementById('danmu-status-pill');
+            if (!pill) return;
+            if (!currentDanmuConfig || !currentDanmuConfig.enabled) {
+                pill.style.background = 'rgba(255,68,68,0.15)';
+                pill.style.color = '#ff6666';
+                pill.style.borderColor = 'rgba(255,68,68,0.3)';
+                pill.innerText = `🔴 弹幕接管已暂停`;
+                return;
+            }
+
+            const now = Date.now();
+            const elapsed = (now - lastSpeechTime) / 1000;
+            const cooldown = currentDanmuConfig.min_speech_interval || 6.5;
+
+            if (elapsed < cooldown) {
+                const left = (cooldown - elapsed).toFixed(1);
+                pill.style.background = 'rgba(255,170,0,0.15)';
+                pill.style.color = '#ffaa00';
+                pill.style.borderColor = 'rgba(255,170,0,0.3)';
+                pill.innerText = `⏳ 话轮冷却(${left}s) | 队:${danmuQueue.length}`;
+            } else {
+                pill.style.background = 'rgba(0,255,136,0.15)';
+                pill.style.color = '#00ff88';
+                pill.style.borderColor = 'rgba(0,255,136,0.3)';
+                pill.innerText = danmuQueue.length > 0 ? `🔥 调度中 (队:${danmuQueue.length})` : `🟢 ${danmuPort} 监听中 (待命)`;
+            }
+
+            const qText = document.getElementById('queue-status-text');
+            if (qText) {
+                qText.innerText = `排队: ${danmuQueue.length} 条 | ${danmuQueue.length > 0 ? '优先调度中' : '空闲'}`;
+            }
+        }
+
+        function toggleTemplateEditor() {
+            const box = document.getElementById('template-editor-box');
+            const icon = document.getElementById('tpl-toggle-icon');
+            if (box.style.display === 'none' || !box.style.display) {
+                box.style.display = 'flex';
+                icon.innerText = '🔼';
+            } else {
+                box.style.display = 'none';
+                icon.innerText = '⚙️';
+            }
+        }
+
+        async function toggleDanmuMainSwitch(checked) {
+            if (!currentDanmuConfig) return;
+            currentDanmuConfig.enabled = checked;
+            await ipcRenderer.invoke('save-danmu-config', currentDanmuConfig);
+            updateDanmuStatusPill();
+            appendLog(checked ? '✅ 抖音弹幕自动响应已开启！' : '⏸️ 抖音弹幕自动响应已暂停。');
+        }
+
+        async function updateDanmuToggles() {
+            if (!currentDanmuConfig) return;
+            currentDanmuConfig.toggles = {
+                chat: document.getElementById('toggle-chat').checked,
+                gift: document.getElementById('toggle-gift').checked,
+                follow: document.getElementById('toggle-follow').checked,
+                enter: document.getElementById('toggle-enter').checked,
+                like: document.getElementById('toggle-like').checked
+            };
+            await ipcRenderer.invoke('save-danmu-config', currentDanmuConfig);
+            appendLog('已更新弹幕事件类型过滤规则');
+        }
+
+        async function saveDanmuParams() {
+            if (!currentDanmuConfig) return;
+            currentDanmuConfig.min_speech_interval = parseFloat(document.getElementById('danmu-interval-input').value) || 6.5;
+            currentDanmuConfig.gift_big_threshold = parseInt(document.getElementById('danmu-gift-threshold-input').value) || 50;
+            await ipcRenderer.invoke('save-danmu-config', currentDanmuConfig);
+            appendLog(`防爆冲参数已保存: 话轮冷却 ${currentDanmuConfig.min_speech_interval}s，大礼阈值 ${currentDanmuConfig.gift_big_threshold} 抖币`);
+        }
+
+        async function saveTemplateChanges() {
+            if (!currentDanmuConfig) return;
+            currentDanmuConfig.templates = {
+                chat: document.getElementById('tpl-chat').value.trim(),
+                gift_big: document.getElementById('tpl-gift-big').value.trim(),
+                gift_small: document.getElementById('tpl-gift-small').value.trim(),
+                follow: document.getElementById('tpl-follow').value.trim(),
+                enter: document.getElementById('tpl-enter').value.trim(),
+                like: document.getElementById('tpl-like').value.trim()
+            };
+            await ipcRenderer.invoke('save-danmu-config', currentDanmuConfig);
+            appendLog('🎉 自定义引导词模板已成功保存至本地 danmu_config.json！');
+            alert('🎉 引导词模板已成功保存！\n所有模式已立即按新模板生效。');
+        }
+
+        async function resetTemplatesToDefault() {
+            if (!confirm('确定恢复所有引导词模板为官方默认设置吗？')) return;
+            const res = await ipcRenderer.invoke('reset-danmu-config');
+            if (res.ok) {
+                initDanmuUI(res.config, danmuPort);
+                appendLog('已恢复官方默认引导词模板');
+                alert('已恢复为官方默认模板！');
+            }
+        }
+
+        function renderDanmuPrompt(template, event) {
+            return template
+                .replace(/\{nickname\}/g, event.nickname || '热心观众')
+                .replace(/\{gender\}/g, event.gender || '观众')
+                .replace(/\{content\}/g, event.content || '')
+                .replace(/\{giftName\}/g, event.giftName || '礼物')
+                .replace(/\{giftCount\}/g, event.giftCount || 1)
+                .replace(/\{diamonds\}/g, event.diamondCount || 0)
+                .replace(/\{count\}/g, event.likeCount || event.count || 1);
+        }
+
+        function addFeedItem(event, statusText) {
+            const feed = document.getElementById('danmu-feed-box');
+            if (!feed) return;
+            if (feed.children.length === 1 && feed.children[0].innerText.includes('等待笔记本')) {
+                feed.innerHTML = '';
+            }
+
+            const div = document.createElement('div');
+            div.id = 'feed_' + event.id;
+            div.style.cssText = 'font-size: 11px; padding: 4px 6px; border-radius: 4px; background: rgba(255,255,255,0.03); display: flex; justify-content: space-between; align-items: center; border: 1px solid rgba(255,255,255,0.05);';
+
+            let icon = '💬';
+            let color = '#fff';
+            let summary = `${event.nickname}: ${event.content}`;
+            if (event.type === 'gift') {
+                icon = '🎁';
+                color = '#ff66cc';
+                summary = `${event.nickname} 送出 ${event.giftName} x ${event.giftCount}`;
+            } else if (event.type === 'follow') {
+                icon = '💖';
+                color = '#ffcc00';
+                summary = `${event.nickname} 关注了主播`;
+            } else if (event.type === 'enter') {
+                icon = '🚪';
+                color = '#00d2ff';
+                summary = `${event.nickname} 进入直播间`;
+            } else if (event.type === 'like') {
+                icon = '👍';
+                color = '#00ff88';
+                summary = `${event.nickname} 点赞了 ${event.likeCount || 1} 次`;
+            }
+
+            div.innerHTML = `
+                <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 220px;">
+                    <span>${icon}</span> <span style="color: ${color};">${summary}</span>
+                </div>
+                <span id="badge_${event.id}" style="font-size: 10px; color: var(--text-dim); background: rgba(0,0,0,0.3); padding: 1px 4px; border-radius: 3px;">
+                    ${statusText || '排队中'}
+                </span>
+            `;
+
+            feed.prepend(div);
+            while (feed.children.length > 5) {
+                feed.removeChild(feed.lastChild);
+            }
+        }
+
+        // 接收来自 8010/human 的实时弹幕事件
+        ipcRenderer.on('incoming-danmu', (e, item) => {
+            if (!currentDanmuConfig || !currentDanmuConfig.enabled) {
+                return;
+            }
+
+            // 检查对应模式开关
+            if (!currentDanmuConfig.toggles || !currentDanmuConfig.toggles[item.type]) {
+                return;
+            }
+
+            // 水军过滤与去重
+            if (item.type === 'chat') {
+                if (IGNORE_WORDS.has(item.content)) {
+                    appendLog(`[弹幕过滤] 忽略水词: "${item.content}"`);
+                    return;
+                }
+                const now = Date.now();
+                const lastUserContent = danmuDedupCache.get(item.nickname);
+                if (lastUserContent && lastUserContent.content === item.content && (now - lastUserContent.time < 12000)) {
+                    return; // 12秒内相同内容防刷屏
+                }
+                danmuDedupCache.set(item.nickname, { content: item.content, time: now });
+            }
+
+            // 确定优先级 (P1 礼物 > P2 弹幕 > P3 关注 > P4 进房/点赞)
+            let prio = 2;
+            if (item.type === 'gift') prio = 1;
+            else if (item.type === 'chat') prio = 2;
+            else if (item.type === 'follow') prio = 3;
+            else if (item.type === 'enter' || item.type === 'like') prio = 4;
+            item.priority = prio;
+
+            addFeedItem(item, prio === 1 ? '🔥优先' : '排队中');
+
+            // 清理已过期弹幕 (TTL 机制)
+            const now = Date.now();
+            const ttlMs = (currentDanmuConfig.ttl_seconds || 25) * 1000;
+            while (danmuQueue.length > 0 && (now - danmuQueue[0].timestamp > ttlMs)) {
+                danmuQueue.shift();
+            }
+
+            // 队列容量满时，按最低优先级淘汰 (绝不丢弃 P1 礼物)
+            const maxQueue = currentDanmuConfig.max_queue_size || 8;
+            if (danmuQueue.length >= maxQueue) {
+                let dropIdx = -1;
+                let maxPrioVal = -1;
+                for (let i = 0; i < danmuQueue.length; i++) {
+                    if (danmuQueue[i].priority > maxPrioVal) {
+                        maxPrioVal = danmuQueue[i].priority;
+                        dropIdx = i;
+                    }
+                }
+                if (dropIdx !== -1 && maxPrioVal > 1) {
+                    const dropped = danmuQueue.splice(dropIdx, 1)[0];
+                    appendLog(`[防爆冲] 队列已满，淘汰低优先级消息: ${dropped.nickname}`);
+                }
+            }
+
+            danmuQueue.push(item);
+            danmuQueue.sort((a, b) => (a.priority - b.priority) || (a.timestamp - b.timestamp));
+            updateDanmuStatusPill();
+        });
+
+        // 启动独立调度节流消费循环
+        setInterval(async () => {
+            updateDanmuStatusPill();
+            if (!currentDanmuConfig || !currentDanmuConfig.enabled) return;
+            if (danmuQueue.length === 0) return;
+
+            const now = Date.now();
+            const intervalMs = (currentDanmuConfig.min_speech_interval || 6.5) * 1000;
+            if (now - lastSpeechTime < intervalMs) {
+                return; // 话轮节流冷却中
+            }
+
+            // 剔除头部的过期弹幕
+            const ttlMs = (currentDanmuConfig.ttl_seconds || 25) * 1000;
+            while (danmuQueue.length > 0 && (now - danmuQueue[0].timestamp > ttlMs)) {
+                const expired = danmuQueue.shift();
+                appendLog(`[防爆冲] 弹幕超时已自动丢弃: [${expired.nickname}] "${expired.content || expired.giftName}"`);
+            }
+            if (danmuQueue.length === 0) return;
+
+            const target = danmuQueue.shift();
+            updateDanmuStatusPill();
+
+            const badge = document.getElementById('badge_' + target.id);
+            if (badge) {
+                badge.innerText = '🎙️播报中';
+                badge.style.color = '#00ff88';
+            }
+
+            // 选择模板
+            let template = '';
+            const tpls = currentDanmuConfig.templates || {};
+            if (target.type === 'chat') {
+                template = tpls.chat;
+            } else if (target.type === 'gift') {
+                const threshold = currentDanmuConfig.gift_big_threshold || 50;
+                template = (target.diamondCount >= threshold) ? tpls.gift_big : tpls.gift_small;
+            } else if (target.type === 'follow') {
+                template = tpls.follow;
+            } else if (target.type === 'enter') {
+                template = tpls.enter;
+            } else if (target.type === 'like') {
+                template = tpls.like;
+            }
+
+            if (!template) return;
+
+            const promptText = renderDanmuPrompt(template, target);
+            lastSpeechTime = Date.now();
+            appendLog(`[弹幕调度] 🎙️ 注入数字人响应 [${target.type}]: "${promptText}"`);
+            await triggerInput(promptText);
+
+            if (badge) {
+                badge.innerText = '✅已完成';
+                badge.style.color = 'var(--text-dim)';
+            }
+        }, 400);
     </script>
 </body>
 </html>
