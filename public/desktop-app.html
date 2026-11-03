@@ -478,8 +478,27 @@
                         <div style="font-size: 11px; color: var(--accent); margin-bottom: 2px;">👍 连击点赞感谢模板:</div>
                         <textarea id="tpl-like" rows="2" style="font-size: 11px;"></textarea>
                     </div>
+
+                    <!-- 本地时间感知配置 -->
+                    <div style="border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 6px; margin-top: 2px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                            <span style="font-size: 11px; color: var(--accent); font-weight: bold;">⏰ 本地时间感知 (北京时间自动对齐):</span>
+                            <label style="font-size: 11px; display: flex; align-items: center; gap: 4px; cursor: pointer; color: var(--accent);">
+                                <input type="checkbox" id="time-awareness-switch" checked style="width: auto;"> 智能感知
+                            </label>
+                        </div>
+                        <div style="font-size: 10px; color: var(--text-dim); margin-bottom: 4px;">
+                            触发机制：当弹幕提及“时间/几点/几号/星期/什么时候”等词时，自动在句尾注入本地时间：
+                        </div>
+                        <input id="time-suffix-tpl" style="font-size: 11px;" value="（本地时间是{time}，如果需要回复，则使用这个时间为参考。）">
+                        <div style="font-size: 10px; color: #00ff88; margin-top: 4px; display: flex; justify-content: space-between;">
+                            <span>本机参考北京时间:</span>
+                            <span id="live-time-display">计算中...</span>
+                        </div>
+                    </div>
+
                     <div style="font-size: 10px; color: var(--text-dim); line-height: 1.4;">
-                        可替换变量：<code>{nickname}</code>观众昵称、<code>{gender}</code>性别、<code>{content}</code>发言、<code>{giftName}</code>礼物名、<code>{giftCount}</code>数量、<code>{count}</code>赞数。
+                        可替换变量：<code>{nickname}</code>观众昵称、<code>{gender}</code>性别、<code>{content}</code>发言、<code>{giftName}</code>礼物名、<code>{giftCount}</code>数量、<code>{count}</code>赞数、<code>{time}</code>北京时间。
                     </div>
                     <div style="display: flex; gap: 8px; margin-top: 2px;">
                         <button class="btn" style="flex: 1; background: var(--accent); color: #000; font-size: 11px; padding: 6px; justify-content: center;" onclick="saveTemplateChanges()">
@@ -1112,6 +1131,19 @@
                 document.getElementById('tpl-like').value = cfg.templates.like || '';
             }
 
+            if (cfg.time_awareness) {
+                document.getElementById('time-awareness-switch').checked = !!cfg.time_awareness.enabled;
+                document.getElementById('time-suffix-tpl').value = cfg.time_awareness.suffix_template || '（本地时间是{time}，如果需要回复，则使用这个时间为参考。）';
+            }
+
+            // 实时走时时钟更新
+            if (!window.__timeDisplayInterval) {
+                window.__timeDisplayInterval = setInterval(() => {
+                    const el = document.getElementById('live-time-display');
+                    if (el) el.innerText = getBeijingTimeString();
+                }, 1000);
+            }
+
             updateDanmuStatusPill();
             appendLog(`📻 抖音弹幕接收中继已就绪: http://0.0.0.0:${danmuPort}/human (智能防爆冲队列运行中)`);
         }
@@ -1191,6 +1223,18 @@
             appendLog(`防爆冲参数已保存: 话轮冷却 ${currentDanmuConfig.min_speech_interval}s，大礼阈值 ${currentDanmuConfig.gift_big_threshold} 抖币`);
         }
 
+        function getBeijingTimeString() {
+            const now = new Date();
+            const days = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+            const year = now.getFullYear();
+            const month = now.getMonth() + 1;
+            const date = now.getDate();
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const dayName = days[now.getDay()];
+            return `${year}年${month}月${date}日 ${hours}:${minutes} ${dayName}`;
+        }
+
         async function saveTemplateChanges() {
             if (!currentDanmuConfig) return;
             currentDanmuConfig.templates = {
@@ -1201,9 +1245,16 @@
                 enter: document.getElementById('tpl-enter').value.trim(),
                 like: document.getElementById('tpl-like').value.trim()
             };
+            currentDanmuConfig.time_awareness = {
+                enabled: document.getElementById('time-awareness-switch').checked,
+                keywords: (currentDanmuConfig.time_awareness && currentDanmuConfig.time_awareness.keywords) || [
+                    "时间", "几点", "日期", "几月", "几号", "星期", "周几", "什么时候", "现在时间", "当下时间", "上午", "下午", "晚上", "中午", "今天", "明天"
+                ],
+                suffix_template: document.getElementById('time-suffix-tpl').value.trim()
+            };
             await ipcRenderer.invoke('save-danmu-config', currentDanmuConfig);
-            appendLog('🎉 自定义引导词模板已成功保存至本地 danmu_config.json！');
-            alert('🎉 引导词模板已成功保存！\n所有模式已立即按新模板生效。');
+            appendLog('🎉 自定义引导词模板与本地时间感知配置已成功保存！');
+            alert('🎉 模板与本地时间感知配置已成功保存！\n所有模式已立即按新设置生效。');
         }
 
         async function resetTemplatesToDefault() {
@@ -1217,14 +1268,35 @@
         }
 
         function renderDanmuPrompt(template, event) {
-            return template
+            const beijingTime = getBeijingTimeString();
+            let rendered = template
                 .replace(/\{nickname\}/g, event.nickname || '热心观众')
                 .replace(/\{gender\}/g, event.gender || '观众')
                 .replace(/\{content\}/g, event.content || '')
                 .replace(/\{giftName\}/g, event.giftName || '礼物')
                 .replace(/\{giftCount\}/g, event.giftCount || 1)
                 .replace(/\{diamonds\}/g, event.diamondCount || 0)
-                .replace(/\{count\}/g, event.likeCount || event.count || 1);
+                .replace(/\{count\}/g, event.likeCount || event.count || 1)
+                .replace(/\{time\}/g, beijingTime);
+
+            // 智能本地时间感知检测（对齐北京时间）
+            const timeCfg = currentDanmuConfig ? currentDanmuConfig.time_awareness : null;
+            if (timeCfg && timeCfg.enabled) {
+                const textToSearch = (event.content || '') + ' ' + (event.text || '');
+                const keywords = timeCfg.keywords || [
+                    "时间", "几点", "日期", "几月", "几号", "星期", "周几", "什么时候", "现在", "当下", "今天", "明天", "上午", "下午", "晚上", "中午"
+                ];
+                const hasTimeQuery = keywords.some(k => textToSearch.includes(k));
+
+                // 若检测到时间相关询问，且当前模板尚未手动包含该时间串，自动在句尾补充本地时间
+                if (hasTimeQuery && !rendered.includes(beijingTime)) {
+                    const suffixTpl = timeCfg.suffix_template || '（本地时间是{time}，如果需要回复，则使用这个时间为参考。）';
+                    const suffix = suffixTpl.replace(/\{time\}/g, beijingTime);
+                    rendered = rendered.trim() + suffix;
+                }
+            }
+
+            return rendered;
         }
 
         function addFeedItem(event, statusText) {

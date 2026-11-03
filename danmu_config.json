@@ -11,6 +11,25 @@
     "enter": false,
     "like": false
   },
+  "time_awareness": {
+    "enabled": true,
+    "keywords": [
+      "时间",
+      "几点",
+      "日期",
+      "几月",
+      "几号",
+      "星期",
+      "周几",
+      "什么时候",
+      "现在时间",
+      "当下时间",
+      "上午",
+      "下午",
+      "晚上"
+    ],
+    "suffix_template": "（本地时间是{time}，如果需要回复，则使用这个时间为参考。）"
+  },
   "templates": {
     "chat": "观众【{nickname}】说：“{content}”。请回复ta，如果弹幕提及动作请配合做出相应动作。",
     "gift_big": "观众【{nickname}】送出了礼物【{giftName} x {giftCount}】！请向ta表达谢意并做出开心的互动动作！",

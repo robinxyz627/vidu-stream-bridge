@@ -202,6 +202,11 @@ const DEFAULT_DANMU_CONFIG = {
         enter: false,
         like: false
     },
+    time_awareness: {
+        enabled: true,
+        keywords: ["时间", "几点", "日期", "几月", "几号", "星期", "周几", "什么时候", "现在时间", "当下时间", "上午", "下午", "晚上"],
+        suffix_template: "（本地时间是{time}，如果需要回复，则使用这个时间为参考。）"
+    },
     templates: {
         chat: '观众【{nickname}】说：“{content}”。请回复ta，如果弹幕提及动作请配合做出相应动作。',
         gift_big: '观众【{nickname}】送出了礼物【{giftName} x {giftCount}】！请向ta表达谢意并做出开心的互动动作！',
@@ -221,6 +226,7 @@ function loadDanmuConfig() {
                 ...DEFAULT_DANMU_CONFIG,
                 ...parsed,
                 toggles: { ...DEFAULT_DANMU_CONFIG.toggles, ...(parsed.toggles || {}) },
+                time_awareness: { ...DEFAULT_DANMU_CONFIG.time_awareness, ...(parsed.time_awareness || {}) },
                 templates: { ...DEFAULT_DANMU_CONFIG.templates, ...(parsed.templates || {}) }
             };
         }
@@ -794,6 +800,9 @@ function createWindow() {
 
             console.log('[AUTO_TEST] 投递关注事件...');
             await postDanmu({ type: 'follow', nickname: '新粉丝小美', gender: '女' });
+
+            console.log('[AUTO_TEST] 投递时间关键词询问 (测试本地时间感知自动注入)...');
+            await postDanmu({ type: 'chat', nickname: '时间提问者', gender: '女', content: '小鱼现在几点钟啦？' });
 
             // 展开引导词模板面板以便截图验证
             await mainWindow.webContents.executeJavaScript(`
