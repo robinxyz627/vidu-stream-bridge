@@ -142,7 +142,7 @@
             display: flex;
             overflow: hidden;
         }
-        /* 100% 纯净专业视口 (居中标准 9:16 直播监视器) */
+        /* 100% 纯净专业视口 (自适应 专业直播监视器) */
         .stage-viewport {
             flex: 1;
             background: radial-gradient(circle at center, #111827 0%, #060910 100%);
@@ -157,21 +157,38 @@
         .stage-monitor {
             height: 100%;
             max-height: calc(100vh - 100px);
-            aspect-ratio: 9 / 16;
+            max-width: calc(100% - 40px);
+            aspect-ratio: var(--stage-aspect-ratio, 9 / 16);
             background: #000;
             border-radius: 16px;
             box-shadow: 0 12px 50px rgba(0, 0, 0, 0.9), 0 0 25px rgba(0, 210, 255, 0.2);
             border: 2px solid #1f2d4d;
             overflow: hidden;
             position: relative;
-            display: block;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: aspect-ratio 0.3s ease, width 0.3s ease, height 0.3s ease;
         }
-        webview {
+        .stage-wv {
+            position: absolute;
+            inset: 0;
             width: 100%;
             height: 100%;
             display: inline-flex;
             background: #000;
             border: none;
+            transition: opacity 0.4s ease-in-out;
+        }
+        .stage-wv.active {
+            opacity: 1;
+            pointer-events: auto;
+            z-index: 2;
+        }
+        .stage-wv.standby {
+            opacity: 0;
+            pointer-events: none;
+            z-index: 1;
         }
         .stage-placeholder {
             position: absolute;
@@ -328,18 +345,26 @@
                         <option value="3527092034331645">花子-坐姿</option>
                         <option value="3523649288834338">花子</option>
                     </optgroup>
-                    <optgroup label="🏛️ 官方预设角色">
+                    <optgroup label="🏛️ 官方预设角色" id="system-roles-group">
+                        <option value="3514101839684654">小雅 (横屏 16:9)</option>
                         <option value="3531369341465755">芙洛 (见习女巫)</option>
                         <option value="3528044080613081">小南瓜 (萌宠猫咪)</option>
                         <option value="3517941367040802">时宁 (高颜值女生)</option>
                         <option value="3515215455234687">唐糖</option>
-                        <option value="3514101839684654">小雅</option>
                         <option value="3478198242223808">沈蔓</option>
                         <option value="3470124410295024">小晚</option>
                         <option value="3430178111750141">沈砚</option>
                         <option value="3417424420520842">青梅竹马-夏琳</option>
                     </optgroup>
                 </select>
+            </div>
+
+            <!-- 画幅比例指示与手动覆盖 -->
+            <div style="display: flex; align-items: center; gap: 6px; background: rgba(0,0,0,0.3); padding: 3px 6px; border-radius: 8px; border: 1px solid var(--border);">
+                <span id="ratio-badge" style="font-size: 11px; padding: 3px 6px; border-radius: 4px; background: rgba(0,210,255,0.15); color: var(--accent); border: 1px solid rgba(0,210,255,0.3); font-weight: bold;">📱 9:16 竖版</span>
+                <button class="btn" style="padding: 3px 6px; font-size: 10px; background: rgba(255,255,255,0.06); color: var(--text-dim);" onclick="setManualAspectRatio('auto')" title="根据下行视频实际分辨率自动适配">🔄 自动</button>
+                <button class="btn" style="padding: 3px 6px; font-size: 10px; background: rgba(255,255,255,0.06); color: var(--text-dim);" onclick="setManualAspectRatio('16/9')" title="强制横屏 16:9">📺 横版</button>
+                <button class="btn" style="padding: 3px 6px; font-size: 10px; background: rgba(255,255,255,0.06); color: var(--text-dim);" onclick="setManualAspectRatio('9/16')" title="强制竖屏 9:16">📱 竖版</button>
             </div>
 
             <button class="btn btn-launch" id="btn-start" onclick="startPureLive()">
@@ -355,11 +380,19 @@
     </header>
 
     <div class="main-layout">
-        <!-- 极致纯净视口 (居中 9:16 专业直播监视器) -->
+        <!-- 极致纯净视口 (A/B 双舞台自适应 专业直播监视器) -->
         <div class="stage-viewport">
-            <div class="stage-monitor">
+            <div class="stage-monitor" id="stage-monitor">
                 <webview 
-                    id="stage-webview" 
+                    id="stage-webview-a" 
+                    class="stage-wv active"
+                    src="about:blank"
+                    partition="persist:vidu-user-session"
+                    allowpopups>
+                </webview>
+                <webview 
+                    id="stage-webview-b" 
+                    class="stage-wv standby"
                     src="about:blank"
                     partition="persist:vidu-user-session"
                     allowpopups>
@@ -551,6 +584,19 @@
                 </div>
             </div>
 
+            <!-- 2.8 扩展插件中心 (独立插件架构，自带独立配置菜单) -->
+            <div class="panel-title" style="justify-content: space-between;">
+                <span>🧩 扩展插件中心</span>
+                <span id="plugins-count-badge" style="font-size: 11px; font-weight: normal; background: rgba(0,210,255,0.15); color: var(--accent); padding: 2px 8px; border-radius: 10px; border: 1px solid rgba(0,210,255,0.3);">
+                    1 个插件已载入
+                </span>
+            </div>
+            <div class="card" id="plugins-card" style="padding: 10px;">
+                <div id="plugins-list" style="display: flex; flex-direction: column; gap: 8px;">
+                    <!-- 动态生成插件卡片及其独立配置界面 -->
+                </div>
+            </div>
+
             <!-- 3. 弹幕与动作交互 -->
             <div class="panel-title">💬 弹幕互动 / 动作干预</div>
             <div class="card">
@@ -578,7 +624,6 @@
 
     <script>
         const { ipcRenderer, clipboard } = require('electron');
-        const webview = document.getElementById('stage-webview');
         const roleSelect = document.getElementById('role-select');
         const userRolesGroup = document.getElementById('user-roles-group');
         const btnStart = document.getElementById('btn-start');
@@ -591,11 +636,26 @@
         const authDot = document.getElementById('auth-dot');
         const authText = document.getElementById('auth-text');
 
+        // A/B 双舞台状态机 (用于零黑屏无缝换装热切换)
+        let activeStage = 'a'; // 'a' or 'b'
+        function getActiveWebview() {
+            return document.getElementById(`stage-webview-${activeStage}`);
+        }
+        function getStandbyWebview() {
+            return document.getElementById(`stage-webview-${activeStage === 'a' ? 'b' : 'a'}`);
+        }
+
         let defaultDetectedHost = '127.0.0.1';
         let currentDanmuPort = 8010;
         let currentObsPort = 8888;
         let loginCheckTimer = null;
         let purifyInterval = null;
+        let isHotSwapping = false;
+
+        // 插件系统状态
+        let loadedPlugins = [];
+        const pluginInstances = new Map();
+        const danmuCallbacks = [];
 
         // 网络与地址配置变更响应
         function onNetworkConfigChanged() {
@@ -698,8 +758,8 @@
                 inset: 0 !important;
                 width: 100% !important;
                 height: 100% !important;
-                object-fit: cover !important;
-                object-position: center top !important;
+                object-fit: contain !important;
+                object-position: center center !important;
                 opacity: 1 !important;
                 visibility: visible !important;
                 display: block !important;
@@ -754,20 +814,37 @@
             }
         }
 
-        // 动态加载用户的自定义数字人角色
+        // 动态加载用户的自定义数字人角色与官方预设角色
         async function loadUserRoles() {
             try {
                 const res = await ipcRenderer.invoke('get-user-avatars');
                 if (res.ok && res.roles && res.roles.length > 0) {
                     userRolesGroup.innerHTML = '';
-                    res.roles.forEach((r, idx) => {
+                    const sysGroup = document.getElementById('system-roles-group');
+                    if (sysGroup) sysGroup.innerHTML = '';
+
+                    const userRoles = res.roles.filter(r => r.avatar_type === 'user');
+                    const sysRoles = res.roles.filter(r => r.avatar_type === 'system');
+
+                    userRoles.forEach((r, idx) => {
                         const opt = document.createElement('option');
                         opt.value = r.id;
                         opt.innerText = `${r.name || '我的数字人'} (ID: ${r.id})`;
                         if (idx === 0 || r.id === '3531288731656683') opt.selected = true;
                         userRolesGroup.appendChild(opt);
                     });
-                    appendLog(`已自动同步您的 ${res.roles.length} 个专属自定义形象！`);
+
+                    if (sysGroup) {
+                        sysRoles.forEach((r) => {
+                            const opt = document.createElement('option');
+                            opt.value = r.id;
+                            const isLandscape = (r.name === '小雅');
+                            opt.innerText = `${r.name} ${isLandscape ? '(横屏 16:9)' : '(官方)'} (ID: ${r.id})`;
+                            sysGroup.appendChild(opt);
+                        });
+                    }
+
+                    appendLog(`已自动同步 ${userRoles.length} 个专属自定义形象与 ${sysRoles.length} 个官方预设形象 (含小雅等)！`);
                 }
             } catch (e) {
                 console.warn('加载角色失败:', e);
@@ -807,6 +884,9 @@
             if (data.danmuConfig) {
                 initDanmuUI(data.danmuConfig, data.danmuPort || 8010);
             }
+
+            // 初始化并载入扩展插件
+            loadInstalledPlugins();
 
             // 自动加载持久化凭证
             if (data.autoAuth && data.autoAuth.ok) {
@@ -858,7 +938,8 @@
         function openLoginView() {
             appendLog('已切出官方登录窗口，登录成功后程序会自动永久保存。');
             placeholder.classList.add('hidden');
-            webview.src = 'https://www.vidu.cn/login';
+            const wv = getActiveWebview();
+            wv.src = 'https://www.vidu.cn/login';
 
             // 启动定时轮询检测是否登录成功
             if (loginCheckTimer) clearInterval(loginCheckTimer);
@@ -872,112 +953,441 @@
                     appendLog(`🎉 窗口内登录成功！账号：[${name}]，会话已永久持久化！`);
                     alert(`🎉 登录成功！\n\n账号：【${name}】\n凭证已自动永久保存，现在可以直接点击【开始纯净开播】！`);
                     loadUserRoles();
-                    webview.src = 'about:blank';
+                    wv.src = 'about:blank';
                     placeholder.classList.remove('hidden');
                 }
             }, 2500);
         }
 
+        // 画幅比例平滑自适应 (根据视频实际分辨率切换 16:9 横版或 9:16 竖版)
+        function adaptStageAspectRatio(width, height) {
+            if (!width || !height) return;
+            const monitor = document.getElementById('stage-monitor');
+            const badge = document.getElementById('ratio-badge');
+            const obsTip = document.getElementById('obs-ratio-tip');
+            const ratio = width / height;
+
+            if (monitor) {
+                monitor.style.setProperty('--stage-aspect-ratio', `${width} / ${height}`);
+            }
+
+            if (ratio > 1.2) {
+                // 横版 (如 16:9 小雅)
+                if (badge) {
+                    badge.innerText = '📺 16:9 横版';
+                    badge.style.background = 'rgba(255, 187, 0, 0.15)';
+                    badge.style.color = '#ffbb00';
+                    badge.style.borderColor = 'rgba(255, 187, 0, 0.3)';
+                }
+                if (obsTip) {
+                    obsTip.innerHTML = `💡 <b>画幅建议</b>：当前角色为横屏 (16:9)，OBS 浏览器源建议设置宽度 <b>1920</b> / 高度 <b>1080</b>。`;
+                }
+                appendLog(`📐 视口自适应: 检测到横屏角色 (${width}x${height}，比例 ${(ratio).toFixed(2)})，监视器已自动平滑展开为 16:9 宽屏！`);
+            } else {
+                // 竖版 (如 9:16 大肥鱼)
+                if (badge) {
+                    badge.innerText = '📱 9:16 竖版';
+                    badge.style.background = 'rgba(0, 210, 255, 0.15)';
+                    badge.style.color = 'var(--accent)';
+                    badge.style.borderColor = 'rgba(0, 210, 255, 0.3)';
+                }
+                if (obsTip) {
+                    obsTip.innerHTML = `💡 <b>画幅建议</b>：当前角色为竖屏 (9:16)，OBS 浏览器源建议设置宽度 <b>1080</b> / 高度 <b>1920</b>。`;
+                }
+                appendLog(`📐 视口自适应: 检测到竖屏角色 (${width}x${height}，比例 ${(ratio).toFixed(2)})，监视器保持 9:16 标准直播画幅！`);
+            }
+        }
+
+        function setManualAspectRatio(ratioVal) {
+            const monitor = document.getElementById('stage-monitor');
+            if (!monitor) return;
+            if (ratioVal === 'auto') {
+                const wv = getActiveWebview();
+                wv.executeJavaScript(`
+                    (function() {
+                        const v = document.querySelector('video');
+                        return v ? { w: v.videoWidth, h: v.videoHeight } : null;
+                    })()
+                `).then(res => {
+                    if (res && res.w > 0) adaptStageAspectRatio(res.w, res.h);
+                });
+            } else if (ratioVal === '16/9') {
+                monitor.style.setProperty('--stage-aspect-ratio', '16 / 9');
+                appendLog('📐 手动强制切换监视器为 16:9 横屏画幅');
+            } else if (ratioVal === '9/16') {
+                monitor.style.setProperty('--stage-aspect-ratio', '9 / 16');
+                appendLog('📐 手动强制切换监视器为 9:16 竖屏画幅');
+            }
+        }
+
         // 核心：点击开播
         function startPureLive() {
             const avatarId = roleSelect.value;
-            const avatarName = roleSelect.options[roleSelect.selectedIndex].text;
+            const avatarName = roleSelect.options[roleSelect.selectedIndex] ? roleSelect.options[roleSelect.selectedIndex].text : avatarId;
 
             appendLog(`正在申请 GPU 房间调度: [${avatarName}]...`);
             placeholder.classList.add('hidden');
             btnStart.style.display = 'none';
             btnStop.style.display = 'flex';
 
-            webview.src = `https://www.vidu.cn/vidu-stream/live-pro?avatar_id=${avatarId}&from=vidu-stream`;
+            const wv = getActiveWebview();
+            wv.src = `https://www.vidu.cn/vidu-stream/live-pro?avatar_id=${avatarId}&from=vidu-stream`;
         }
 
-        // 核心：停止挂断
+        // 核心：停止挂断 (释放 A/B 双舞台)
         function stopLive() {
             appendLog('正在释放数字人实例...');
             if (purifyInterval) {
                 clearInterval(purifyInterval);
                 purifyInterval = null;
             }
-            webview.executeJavaScript(`
-                (function() {
-                    window.__obs_bridge_active = false;
-                    if (window.__peerConnections) {
-                        for (const [id, pc] of window.__peerConnections.entries()) {
-                            try { pc.close(); } catch(e) {}
+            const wvA = document.getElementById('stage-webview-a');
+            const wvB = document.getElementById('stage-webview-b');
+
+            [wvA, wvB].forEach(wv => {
+                if (!wv) return;
+                try {
+                    wv.executeJavaScript(`
+                        (function() {
+                            window.__obs_bridge_active = false;
+                            if (window.__obsWS) {
+                                try { window.__obsWS.close(); } catch(e) {}
+                            }
+                            if (window.__peerConnections) {
+                                for (const [id, pc] of window.__peerConnections.entries()) {
+                                    try { pc.close(); } catch(e) {}
+                                }
+                                window.__peerConnections.clear();
+                            }
+                            const hangupBtn = document.querySelector('button[aria-label="挂断"]');
+                            if (hangupBtn) {
+                                hangupBtn.click();
+                            } else {
+                                const btns = document.querySelectorAll('button');
+                                for (const b of btns) {
+                                    if (b.className.includes('red') || b.className.includes('hangup') || b.innerText.includes('挂断')) {
+                                        b.click();
+                                    }
+                                }
+                            }
+                        })();
+                    `);
+                } catch(e) {}
+                setTimeout(() => { wv.src = 'about:blank'; }, 500);
+            });
+
+            btnStart.style.display = 'flex';
+            btnStop.style.display = 'none';
+            placeholder.classList.remove('hidden');
+            appendLog('通话已结束，算力资源已释放');
+        }
+
+        // 视口深度净化绑定函数 (支持 A/B 双视口独立挂载)
+        function setupWebviewPurification(wv) {
+            if (!wv) return;
+            wv.addEventListener('dom-ready', () => {
+                const currentUrl = wv.getURL();
+                if (currentUrl.includes('/login')) {
+                    appendLog('当前处于官方登录界面，请在视口中扫码或输入手机号验证码');
+                    return;
+                }
+                if (!currentUrl.includes('live-pro')) {
+                    return;
+                }
+
+                wv.insertCSS(PURIFY_CSS).catch(e => console.warn(e));
+
+                // 若处于 A/B 双舞台热切中，由 switchAvatarSeamless 精准接管推流与视口
+                if (isHotSwapping && wv !== getActiveWebview()) {
+                    return;
+                }
+
+                appendLog(`数字人房间已载入 [${wv.id}]，正在建立 WebRTC 纯净音视频流通道...`);
+
+                let checkCount = 0;
+                const timer = setInterval(async () => {
+                    checkCount++;
+                    if (checkCount > 40) {
+                        clearInterval(timer);
+                        return;
+                    }
+                    try {
+                        const status = await wv.executeJavaScript(`
+                            (function() {
+                                const videos = Array.from(document.querySelectorAll('video'));
+                                const rv = videos.find(v => v.videoWidth > 0);
+                                return {
+                                    videoActive: !!(rv && rv.videoWidth > 0),
+                                    width: rv ? rv.videoWidth : 0,
+                                    height: rv ? rv.videoHeight : 0
+                                };
+                            })()
+                        `);
+
+                        if (status && status.videoActive) {
+                            clearInterval(timer);
+                            appendLog(`🎥 纯净视频流已就绪！原始分辨率: ${status.width}x${status.height} (无水印/无计时/纯净原生)`);
+                            adaptStageAspectRatio(status.width, status.height);
+                            injectOBSBridge(wv);
                         }
-                        window.__peerConnections.clear();
-                    }
-                    if (window.__currentPC) {
-                        try { window.__currentPC.close(); } catch(e) {}
-                    }
-                    const hangupBtn = document.querySelector('button[aria-label="挂断"]');
-                    if (hangupBtn) {
-                        hangupBtn.click();
-                    } else {
-                        const btns = document.querySelectorAll('button');
-                        for (const b of btns) {
-                            if (b.className.includes('red') || b.className.includes('hangup') || b.innerText.includes('挂断')) {
-                                b.click();
+                    } catch (e) {}
+                }, 800);
+            });
+        }
+
+        // 初始化绑定 A/B 双视口深度净化
+        setupWebviewPurification(document.getElementById('stage-webview-a'));
+        setupWebviewPurification(document.getElementById('stage-webview-b'));
+
+        // ====================== 插件系统桥接与生命周期管理 ======================
+        const configUpdateListeners = [];
+        window.ViduPluginBridge = {
+            getAvatars: async () => {
+                const res = await ipcRenderer.invoke('get-user-avatars');
+                return (res && res.roles) ? res.roles : [];
+            },
+            getCurrentAvatar: () => {
+                if (!roleSelect) return null;
+                const opt = roleSelect.options[roleSelect.selectedIndex];
+                return {
+                    id: roleSelect.value,
+                    name: opt ? opt.text.split(' ')[0] : roleSelect.value
+                };
+            },
+            switchAvatar: (targetAvatarId, targetName) => {
+                return switchAvatarSeamless(targetAvatarId, targetName);
+            },
+            sendChat: (text) => {
+                return triggerInput(text);
+            },
+            sendAction: (action) => {
+                return triggerInput(action);
+            },
+            onDanmu: (cb) => {
+                if (typeof cb === 'function') {
+                    danmuCallbacks.push(cb);
+                }
+            },
+            loadConfig: async (pluginId) => {
+                const res = await ipcRenderer.invoke('load-plugin-config', pluginId);
+                return (res && res.ok) ? res.config : {};
+            },
+            saveConfig: async (pluginId, config) => {
+                const res = await ipcRenderer.invoke('save-plugin-config', { pluginId, config });
+                if (res && res.ok) {
+                    configUpdateListeners.filter(l => l.id === pluginId).forEach(l => {
+                        try { l.cb(config); } catch(e) {}
+                    });
+                }
+                return res;
+            },
+            onConfigUpdated: (pluginId, cb) => {
+                configUpdateListeners.push({ id: pluginId, cb });
+            },
+            log: (msg) => {
+                appendLog(msg);
+            }
+        };
+
+        async function loadInstalledPlugins() {
+            try {
+                const res = await ipcRenderer.invoke('get-installed-plugins');
+                if (res.ok && res.plugins) {
+                    loadedPlugins = res.plugins;
+                    const badge = document.getElementById('plugins-count-badge');
+                    if (badge) badge.innerText = `${loadedPlugins.length} 个插件已载入`;
+
+                    // 实例化插件逻辑脚本 (如果该插件自带 index.js)
+                    const path = require('path');
+                    for (const plugin of loadedPlugins) {
+                        if (plugin.hasScript && !pluginInstances.has(plugin.dirName)) {
+                            try {
+                                const pluginEntryPath = path.join(__dirname, '..', 'plugins', plugin.dirName, plugin.manifest.entry || 'index.js');
+                                const pluginFactory = require(pluginEntryPath);
+                                if (typeof pluginFactory === 'function') {
+                                    const inst = pluginFactory(window.ViduPluginBridge);
+                                    pluginInstances.set(plugin.dirName, inst);
+                                    appendLog(`🧩 插件 [${plugin.manifest.name}] 脚本引擎已挂载！`);
+                                }
+                            } catch (err) {
+                                console.error(`[Plugin] 启动插件脚本 ${plugin.dirName} 失败:`, err);
+                                appendLog(`⚠️ 插件 [${plugin.manifest.name}] 脚本启动异常: ${err.message}`);
                             }
                         }
                     }
-                })();
-            `);
-            setTimeout(() => {
-                webview.src = 'about:blank';
-                btnStart.style.display = 'flex';
-                btnStop.style.display = 'none';
-                placeholder.classList.remove('hidden');
-                appendLog('通话已结束，算力资源已释放');
-            }, 600);
+
+                    renderPluginsList();
+                }
+            } catch (e) {
+                console.warn('获取插件列表失败:', e);
+            }
         }
 
-        // 视口深度净化（仅在 live-pro 开播页面生效）
-        webview.addEventListener('dom-ready', () => {
-            const currentUrl = webview.getURL();
-            if (currentUrl.includes('/login')) {
-                appendLog('当前处于官方登录界面，请在视口中扫码或输入手机号验证码');
-                return;
-            }
-            if (!currentUrl.includes('live-pro')) {
+        function renderPluginsList() {
+            const listEl = document.getElementById('plugins-list');
+            if (!listEl) return;
+            if (loadedPlugins.length === 0) {
+                listEl.innerHTML = '<div style="font-size: 11px; color: var(--text-dim); text-align: center; padding: 12px;">暂无安装的插件</div>';
                 return;
             }
 
-            appendLog('数字人房间已载入，正在建立 WebRTC 纯净音视频流通道...');
+            const hostInput = document.getElementById('custom-host-input');
+            const portInput = document.getElementById('custom-port-input');
+            const activeHost = (hostInput && hostInput.value.trim()) || defaultDetectedHost || '127.0.0.1';
+            const activePort = (portInput && portInput.value.trim()) || '8888';
 
-            // 1. 注入强力纯净化 CSS
-            webview.insertCSS(PURIFY_CSS).catch(e => console.warn(e));
+            listEl.innerHTML = '';
+            loadedPlugins.forEach(plugin => {
+                const item = document.createElement('div');
+                item.style.cssText = 'background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 8px; padding: 10px;';
 
-            // 2. 持续检测远端视频流并在连接建立后强化视口
-            if (purifyInterval) clearInterval(purifyInterval);
-            purifyInterval = setInterval(async () => {
+                const isEnabled = plugin.config.enabled !== false;
+                const uiUrl = `http://${activeHost}:${activePort}/plugins/${plugin.dirName}/${plugin.manifest.ui || 'ui.html'}`;
+
+                item.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                            <span style="font-size: 13px; font-weight: bold; color: var(--text-main);">${plugin.manifest.name || plugin.dirName}</span>
+                            <span style="font-size: 10px; color: var(--text-dim); background: rgba(255,255,255,0.06); padding: 1px 5px; border-radius: 4px;">v${plugin.manifest.version || '1.0.0'}</span>
+                        </div>
+                        <div style="display: flex; gap: 6px; align-items: center;">
+                            ${plugin.hasUI ? `
+                                <button class="btn" style="padding: 3px 8px; font-size: 11px; background: rgba(0,210,255,0.12); color: var(--accent); border: 1px solid rgba(0,210,255,0.3); cursor: pointer;" onclick="togglePluginUI('${plugin.dirName}')">
+                                    ⚙️ 配置菜单
+                                </button>
+                            ` : ''}
+                            <label style="display: flex; align-items: center; gap: 4px; cursor: pointer; font-size: 11px; color: ${isEnabled ? 'var(--accent-green)' : 'var(--text-dim)'};">
+                                <input type="checkbox" ${isEnabled ? 'checked' : ''} onchange="togglePluginEnabled('${plugin.dirName}', this.checked)" style="width: auto;">
+                                启用
+                            </label>
+                        </div>
+                    </div>
+                    <div style="font-size: 11px; color: var(--text-dim); margin-top: 4px;">
+                        ${plugin.manifest.description || '无描述'}
+                    </div>
+                    ${plugin.hasUI ? `
+                        <div id="plugin-ui-box-${plugin.dirName}" style="display: none; margin-top: 10px; border-radius: 8px; overflow: hidden; border: 1px solid rgba(0,210,255,0.25); box-shadow: 0 4px 15px rgba(0,0,0,0.4);">
+                            <iframe id="plugin-iframe-${plugin.dirName}" src="${uiUrl}" style="width: 100%; height: 390px; border: none; background: #0b101d; display: block;"></iframe>
+                        </div>
+                    ` : ''}
+                `;
+                listEl.appendChild(item);
+            });
+        }
+
+        function togglePluginUI(dirName) {
+            const box = document.getElementById(`plugin-ui-box-${dirName}`);
+            if (!box) return;
+            if (box.style.display === 'none' || !box.style.display) {
+                box.style.display = 'block';
+            } else {
+                box.style.display = 'none';
+            }
+        }
+
+        async function togglePluginEnabled(dirName, enabled) {
+            const plugin = loadedPlugins.find(p => p.dirName === dirName);
+            if (!plugin) return;
+            plugin.config.enabled = enabled;
+            await window.ViduPluginBridge.saveConfig(dirName, plugin.config);
+            appendLog(`[插件系统] 插件 [${plugin.manifest.name}] 已${enabled ? '启用' : '禁用'}`);
+        }
+
+        // 核心黑科技：A/B 双舞台零黑屏无缝换装调度器
+        async function switchAvatarSeamless(targetAvatarId, targetName) {
+            if (isHotSwapping) {
+                appendLog(`⏳ 正在进行另一次换装中，已忽略重复换装请求`);
+                return { ok: false, reason: 'busy' };
+            }
+
+            isHotSwapping = true;
+            const standbyKey = activeStage === 'a' ? 'b' : 'a';
+            const activeKey = activeStage;
+            const standbyWV = document.getElementById(`stage-webview-${standbyKey}`);
+            const activeWV = document.getElementById(`stage-webview-${activeKey}`);
+
+            appendLog(`👗 [A/B 双舞台热切] 正在后台静默申请 GPU 实例拉取新角色 [${targetName || targetAvatarId}]...`);
+
+            // 1. 设置 standbyWV 并开始静默导航
+            standbyWV.src = `https://www.vidu.cn/vidu-stream/live-pro?avatar_id=${targetAvatarId}&from=vidu-stream`;
+
+            // 2. 注入深度纯净化 CSS
+            const domReadyHandler = () => {
+                standbyWV.insertCSS(PURIFY_CSS).catch(e => console.warn(e));
+            };
+            standbyWV.addEventListener('dom-ready', domReadyHandler, { once: true });
+
+            // 3. 轮询等待 standbyWV 的 WebRTC 远端视频流首帧解码就绪
+            let newStreamReady = false;
+            let streamMeta = null;
+            for (let i = 0; i < 30; i++) {
+                await new Promise(r => setTimeout(r, 600));
                 try {
-                    const status = await webview.executeJavaScript(`
+                    const res = await standbyWV.executeJavaScript(`
                         (function() {
                             const videos = Array.from(document.querySelectorAll('video'));
-                            const rv = videos.find(v => v.videoWidth > 0);
-                            return {
-                                videoActive: !!(rv && rv.videoWidth > 0),
-                                width: rv ? rv.videoWidth : 0,
-                                height: rv ? rv.videoHeight : 0
-                            };
+                            const rv = videos.find(v => v.videoWidth > 0 && !v.paused);
+                            return rv ? { active: true, w: rv.videoWidth, h: rv.videoHeight, readyState: rv.readyState } : { active: false };
                         })()
                     `);
-
-                    if (status && status.videoActive) {
-                        clearInterval(purifyInterval);
-                        purifyInterval = null;
-                        appendLog(`🎥 纯净视频流已就绪！原始分辨率: ${status.width}x${status.height} (无水印/无计时/纯净原生)`);
-                        injectOBSBridge();
+                    if (res && res.active && res.w > 0 && res.readyState >= 2) {
+                        newStreamReady = true;
+                        streamMeta = res;
+                        break;
                     }
-                } catch (e) {}
-            }, 800);
-        });
+                } catch(e) {}
+            }
+
+            if (!newStreamReady) {
+                appendLog(`⚠️ [换装超时] 新角色 [${targetName || targetAvatarId}] 后台排队超时，取消本次换装`);
+                standbyWV.src = 'about:blank';
+                isHotSwapping = false;
+                return { ok: false, reason: 'timeout' };
+            }
+
+            // 4. 等待 500ms 保证新视频轨道平稳解码
+            await new Promise(r => setTimeout(r, 500));
+
+            // 5. 将推流中继无缝热迁移至 standbyWV
+            appendLog(`🎥 新角色画面已就绪 (${streamMeta.w}x${streamMeta.h})，正在向 OBS 实时热换轨...`);
+            injectOBSBridge(standbyWV);
+
+            // 6. 工作台视口平滑淡入切换
+            activeWV.className = 'stage-wv standby';
+            standbyWV.className = 'stage-wv active';
+            activeStage = standbyKey;
+
+            // 7. 动态自适应画幅
+            adaptStageAspectRatio(streamMeta.w, streamMeta.h);
+
+            // 8. 同步更新角色下拉框
+            if (roleSelect) {
+                roleSelect.value = targetAvatarId;
+            }
+
+            appendLog(`🎉 [换装成功] 已零黑屏无缝切换至新角色 [${targetName || targetAvatarId}]！OBS 直播保持流畅！`);
+
+            // 9. 优雅关闭老角色连接，释放 GPU 资源
+            setTimeout(() => {
+                try {
+                    activeWV.executeJavaScript(`
+                        (function() {
+                            const hangupBtn = document.querySelector('button[aria-label="挂断"]');
+                            if (hangupBtn) hangupBtn.click();
+                        })();
+                    `);
+                } catch(e) {}
+                setTimeout(() => { activeWV.src = 'about:blank'; isHotSwapping = false; }, 1500);
+            }, 1000);
+
+            return { ok: true };
+        }
 
         // 注入 OBS 局域网 WebRTC 实时中继推流器 (支持多 OBS 客户端隔离、音视频轨道聚合与队列缓存)
-        function injectOBSBridge() {
-            appendLog('正在建立 OBS 跨电脑局域网推流转发通道...');
-            webview.executeJavaScript(`
+        function injectOBSBridge(targetWV) {
+            const wv = targetWV || getActiveWebview();
+            appendLog(`正在建立 OBS 跨电脑局域网推流转发通道 [${wv.id}]...`);
+            wv.executeJavaScript(`
                 (function() {
                     if (window.__obs_bridge_active) return;
                     window.__obs_bridge_active = true;
@@ -1180,7 +1590,8 @@
         async function triggerInput(text) {
             appendLog(`正在注入交互指令: "${text}"...`);
             try {
-                const res = await webview.executeJavaScript(`
+                const wv = getActiveWebview();
+                const res = await wv.executeJavaScript(`
                     (async function() {
                         let input = document.querySelector('input[placeholder*="输入"]');
                         if (!input) {
@@ -1475,6 +1886,11 @@
 
         // 接收来自 8010/human 的实时弹幕事件
         ipcRenderer.on('incoming-danmu', (e, item) => {
+            // 插件事件总线：优先广播给所有独立插件
+            danmuCallbacks.forEach(cb => {
+                try { cb(item); } catch(err) { console.warn('[Plugin Callback Error]:', err); }
+            });
+
             if (!currentDanmuConfig || !currentDanmuConfig.enabled) {
                 return;
             }

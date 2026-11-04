@@ -1,0 +1,11 @@
+{
+  "id": "dress-up",
+  "name": "👗 智能送礼/指令无缝换装",
+  "version": "1.0.0",
+  "description": "检测到直播间送指定礼物或特定弹幕口令时，触发 A/B 双舞台零黑屏热切换",
+  "author": "vidu-web",
+  "icon": "👗",
+  "entry": "index.js",
+  "ui": "ui.html",
+  "defaultEnabled": true
+}

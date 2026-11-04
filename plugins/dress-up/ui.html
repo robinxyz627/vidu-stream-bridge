@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>送礼自动无缝换装配置</title>
+    <style>
+        :root {
+            --bg-dark: #0b101d;
+            --bg-card: #121a2d;
+            --border: rgba(255, 255, 255, 0.1);
+            --accent: #00d2ff;
+            --accent-green: #00ff88;
+            --accent-pink: #ff3366;
+            --text-main: #f0f4f8;
+            --text-dim: #8a99ad;
+        }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+        body {
+            background: var(--bg-dark);
+            color: var(--text-main);
+            padding: 12px;
+            font-size: 12px;
+        }
+        .header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border);
+        }
+        .title {
+            font-size: 13px;
+            font-weight: bold;
+            color: var(--accent);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .switch-label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .form-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .form-group {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        label {
+            font-size: 11px;
+            color: var(--text-dim);
+        }
+        input, select, textarea {
+            background: #18233c;
+            border: 1px solid var(--border);
+            color: #fff;
+            padding: 6px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            outline: none;
+        }
+        input:focus, select:focus, textarea:focus {
+            border-color: var(--accent);
+        }
+        .btn {
+            background: var(--accent);
+            color: #000;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: bold;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            transition: all 0.2s;
+        }
+        .btn:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+        .btn-danger {
+            background: rgba(255, 51, 102, 0.2);
+            color: var(--accent-pink);
+            border: 1px solid rgba(255, 51, 102, 0.4);
+        }
+        .rules-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 8px;
+            margin-bottom: 12px;
+        }
+        .rules-table th {
+            text-align: left;
+            font-size: 11px;
+            color: var(--text-dim);
+            padding: 6px;
+            border-bottom: 1px solid var(--border);
+        }
+        .rules-table td {
+            padding: 6px;
+            font-size: 11px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        .badge {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            background: rgba(0, 210, 255, 0.15);
+            color: var(--accent);
+            border: 1px solid rgba(0, 210, 255, 0.3);
+        }
+        .card-inner {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+        .toast {
+            position: fixed;
+            bottom: 10px;
+            right: 10px;
+            background: rgba(0, 255, 136, 0.2);
+            color: #00ff88;
+            border: 1px solid rgba(0, 255, 136, 0.4);
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 11px;
+            display: none;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header-row">
+        <div class="title">👗 送礼 / 口令自动无缝换装配置</div>
+        <label class="switch-label">
+            <input type="checkbox" id="plugin-switch" checked> 启用本插件
+        </label>
+    </div>
+
+    <div class="card-inner">
+        <div class="form-row">
+            <div class="form-group" style="flex: 1;">
+                <label>换装冷却防抖时间 (秒):</label>
+                <input type="number" id="cooldown-input" value="40" min="5" max="300" style="width: 100px;">
+            </div>
+            <div class="form-group" style="flex: 2;">
+                <label>换装默认过渡台词模板:</label>
+                <input type="text" id="speech-input" value="收到【{nickname}】的心意，我先去换套新衣服，马上回来哦~">
+            </div>
+        </div>
+    </div>
+
+    <div class="card-inner">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <span style="font-weight: bold; color: var(--accent);">🎯 换装触发规则列表:</span>
+            <span style="font-size: 10px; color: var(--text-dim);">支持礼物名、抖币价值门槛、弹幕指令</span>
+        </div>
+
+        <table class="rules-table">
+            <thead>
+                <tr>
+                    <th style="width: 90px;">触发条件</th>
+                    <th style="width: 100px;">触发值</th>
+                    <th style="width: 120px;">目标角色</th>
+                    <th>过渡台词</th>
+                    <th style="width: 50px;">操作</th>
+                </tr>
+            </thead>
+            <tbody id="rules-tbody">
+                <!-- 动态渲染 -->
+            </tbody>
+        </table>
+
+        <!-- 添加规则表单 -->
+        <div style="background: rgba(0,0,0,0.25); border: 1px dashed var(--border); border-radius: 6px; padding: 8px; margin-top: 8px;">
+            <div style="font-size: 11px; color: var(--accent); margin-bottom: 6px; font-weight: bold;">➕ 添加新换装规则:</div>
+            <div style="display: grid; grid-template-columns: 110px 110px 140px 1fr 60px; gap: 6px; align-items: center;">
+                <select id="new-rule-type">
+                    <option value="gift_name">🎁 礼物名称</option>
+                    <option value="gift_diamonds">💎 抖币价值≥</option>
+                    <option value="chat_command">💬 弹幕口令</option>
+                </select>
+                <input type="text" id="new-rule-trigger" placeholder="例如: 嘉年华 / 100">
+                <select id="new-rule-avatar">
+                    <option value="">加载角色中...</option>
+                </select>
+                <input type="text" id="new-rule-speech" placeholder="选填: 个性化过渡台词">
+                <button class="btn" onclick="addNewRule()" style="padding: 6px 8px; justify-content: center;">添加</button>
+            </div>
+        </div>
+    </div>
+
+    <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px;">
+        <button class="btn" style="background: var(--accent-green);" onclick="saveSettings()">💾 保存换装配置并立即生效</button>
+    </div>
+
+    <div id="toast" class="toast">✅ 配置已成功保存！</div>
+
+    <script>
+        const bridge = window.parent && window.parent.ViduPluginBridge ? window.parent.ViduPluginBridge : null;
+        let currentConfig = {
+            enabled: true,
+            cooldown: 40,
+            transition_speech: "收到【{nickname}】的心意，我先去换套新衣服，马上回来哦~",
+            rules: []
+        };
+        let availableAvatars = [];
+
+        async function init() {
+            if (bridge) {
+                // 加载角色列表
+                try {
+                    availableAvatars = await bridge.getAvatars();
+                    renderAvatarSelect();
+                } catch(e) {
+                    console.warn('获取角色失败:', e);
+                }
+
+                // 加载当前配置
+                try {
+                    const cfg = await bridge.loadConfig('dress-up');
+                    if (cfg && cfg.rules) {
+                        currentConfig = cfg;
+                    }
+                } catch(e) {
+                    console.warn('加载配置失败:', e);
+                }
+            }
+
+            renderUI();
+        }
+
+        function renderAvatarSelect() {
+            const sel = document.getElementById('new-rule-avatar');
+            sel.innerHTML = '';
+            if (!availableAvatars || availableAvatars.length === 0) {
+                sel.innerHTML = '<option value="">暂未获取到角色</option>';
+                return;
+            }
+            availableAvatars.forEach(av => {
+                const opt = document.createElement('option');
+                opt.value = av.id;
+                opt.innerText = `${av.name} (${av.avatar_type === 'system' ? '官方' : '自定义'})`;
+                sel.appendChild(opt);
+            });
+        }
+
+        function renderUI() {
+            document.getElementById('plugin-switch').checked = !!currentConfig.enabled;
+            document.getElementById('cooldown-input').value = currentConfig.cooldown || 40;
+            document.getElementById('speech-input').value = currentConfig.transition_speech || '';
+
+            const tbody = document.getElementById('rules-tbody');
+            tbody.innerHTML = '';
+
+            const rules = currentConfig.rules || [];
+            if (rules.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-dim); padding: 12px;">暂未配置换装规则，请在下方添加</td></tr>';
+                return;
+            }
+
+            rules.forEach((r, idx) => {
+                const tr = document.createElement('tr');
+                const typeMap = {
+                    'gift_name': '🎁 礼物名',
+                    'gift_diamonds': '💎 抖币≥',
+                    'chat_command': '💬 口令'
+                };
+                tr.innerHTML = `
+                    <td><span class="badge">${typeMap[r.type] || r.type}</span></td>
+                    <td style="font-weight: bold; color: #a5f3fc;">${r.trigger}</td>
+                    <td style="color: var(--accent); font-weight: 500;">${r.targetAvatarName || r.targetAvatarId}</td>
+                    <td style="color: var(--text-dim); font-size: 10px; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${r.speech || '-'}</td>
+                    <td>
+                        <button class="btn btn-danger" style="padding: 2px 6px; font-size: 10px;" onclick="deleteRule(${idx})">删除</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function addNewRule() {
+            const type = document.getElementById('new-rule-type').value;
+            const trigger = document.getElementById('new-rule-trigger').value.trim();
+            const avatarSel = document.getElementById('new-rule-avatar');
+            const targetAvatarId = avatarSel.value;
+            const targetAvatarName = avatarSel.options[avatarSel.selectedIndex] ? avatarSel.options[avatarSel.selectedIndex].text.split(' ')[0] : targetAvatarId;
+            const speech = document.getElementById('new-rule-speech').value.trim();
+
+            if (!trigger) {
+                alert('请填写触发值！');
+                return;
+            }
+            if (!targetAvatarId) {
+                alert('请选择目标角色！');
+                return;
+            }
+
+            currentConfig.rules = currentConfig.rules || [];
+            currentConfig.rules.push({
+                id: 'rule_' + Date.now(),
+                type,
+                trigger,
+                targetAvatarId,
+                targetAvatarName,
+                speech
+            });
+
+            document.getElementById('new-rule-trigger').value = '';
+            document.getElementById('new-rule-speech').value = '';
+
+            renderUI();
+        }
+
+        function deleteRule(idx) {
+            currentConfig.rules.splice(idx, 1);
+            renderUI();
+        }
+
+        async function saveSettings() {
+            currentConfig.enabled = document.getElementById('plugin-switch').checked;
+            currentConfig.cooldown = parseInt(document.getElementById('cooldown-input').value, 10) || 40;
+            currentConfig.transition_speech = document.getElementById('speech-input').value.trim();
+
+            if (bridge) {
+                await bridge.saveConfig('dress-up', currentConfig);
+                bridge.log(`👗 [换装插件] 配置已保存更新！已配置 ${currentConfig.rules.length} 条换装规则。`);
+            }
+
+            showToast();
+        }
+
+        function showToast() {
+            const toast = document.getElementById('toast');
+            toast.style.display = 'block';
+            setTimeout(() => { toast.style.display = 'none'; }, 2000);
+        }
+
+        // 初始化
+        window.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>

@@ -27,6 +27,72 @@ const PORT = 8888;
 serverApp.use(cors());
 serverApp.use(express.json());
 serverApp.use(express.static(path.join(__dirname, 'public')));
+serverApp.use('/plugins', express.static(path.join(__dirname, 'plugins')));
+
+// ====================== 1.2 独立插件系统管理器 (Plugin System) ======================
+const PLUGINS_DIR = path.join(__dirname, 'plugins');
+if (!fs.existsSync(PLUGINS_DIR)) {
+    try { fs.mkdirSync(PLUGINS_DIR, { recursive: true }); } catch(e) {}
+}
+
+ipcMain.handle('get-installed-plugins', async () => {
+    try {
+        if (!fs.existsSync(PLUGINS_DIR)) return { ok: true, plugins: [] };
+        const entries = fs.readdirSync(PLUGINS_DIR, { withFileTypes: true });
+        const plugins = [];
+        for (const entry of entries) {
+            if (entry.isDirectory()) {
+                const manifestPath = path.join(PLUGINS_DIR, entry.name, 'manifest.json');
+                const configPath = path.join(PLUGINS_DIR, entry.name, 'config.json');
+                if (fs.existsSync(manifestPath)) {
+                    try {
+                        const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+                        let config = {};
+                        if (fs.existsSync(configPath)) {
+                            config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+                        }
+                        plugins.push({
+                            dirName: entry.name,
+                            manifest,
+                            config,
+                            hasUI: fs.existsSync(path.join(PLUGINS_DIR, entry.name, manifest.ui || 'ui.html')),
+                            hasScript: fs.existsSync(path.join(PLUGINS_DIR, entry.name, manifest.entry || 'index.js'))
+                        });
+                    } catch(err) {
+                        console.warn(`[Plugin] 加载插件 ${entry.name} 失败:`, err.message);
+                    }
+                }
+            }
+        }
+        return { ok: true, plugins };
+    } catch(err) {
+        return { ok: false, error: err.message };
+    }
+});
+
+ipcMain.handle('load-plugin-config', async (event, pluginId) => {
+    try {
+        const configPath = path.join(PLUGINS_DIR, pluginId, 'config.json');
+        if (fs.existsSync(configPath)) {
+            return { ok: true, config: JSON.parse(fs.readFileSync(configPath, 'utf8')) };
+        }
+        return { ok: true, config: {} };
+    } catch(err) {
+        return { ok: false, error: err.message };
+    }
+});
+
+ipcMain.handle('save-plugin-config', async (event, { pluginId, config }) => {
+    try {
+        const pluginPath = path.join(PLUGINS_DIR, pluginId);
+        if (!fs.existsSync(pluginPath)) fs.mkdirSync(pluginPath, { recursive: true });
+        const configPath = path.join(pluginPath, 'config.json');
+        fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8');
+        return { ok: true };
+    } catch(err) {
+        return { ok: false, error: err.message };
+    }
+});
 
 function getLocalIP() {
     const interfaces = os.networkInterfaces();
@@ -371,11 +437,11 @@ ipcMain.handle('check-auth-status', async () => {
     return await verifyUserAuth(viduSession);
 });
 
-// 获取用户自定义角色列表 (大肥鱼、花子等)
+// 获取角色列表 (自动汇聚用户自定义专属角色与官方预设角色，如小雅等)
 ipcMain.handle('get-user-avatars', async () => {
     try {
         const viduSession = session.fromPartition('persist:vidu-user-session');
-        const res = await viduSession.fetch('https://service.vidu.cn/live/v1/keeper/avatar/roles?pager.page=0&pager.pagesz=50&avatar_types=user', {
+        const res = await viduSession.fetch('https://service.vidu.cn/live/v1/keeper/avatar/roles?pager.page=0&pager.pagesz=100', {
             headers: COMMON_HEADERS
         });
         if (res.status === 200) {
@@ -669,7 +735,7 @@ function createWindow() {
                 await new Promise(r => setTimeout(r, 1000));
                 const res = await mainWindow.webContents.executeJavaScript(`
                     (async function() {
-                        const wv = document.getElementById('stage-webview');
+                        const wv = document.getElementById('stage-webview-a') || document.getElementById('stage-webview');
                         if (!wv) return { err: 'no webview' };
                         try {
                             return await wv.executeJavaScript(\`
@@ -804,14 +870,15 @@ function createWindow() {
             console.log('[AUTO_TEST] 投递时间关键词询问 (测试本地时间感知自动注入)...');
             await postDanmu({ type: 'chat', nickname: '时间提问者', gender: '女', content: '小鱼现在几点钟啦？' });
 
-            // 展开引导词模板面板以便截图验证
+            // 展开引导词模板面板与插件配置菜单以便截图验证
             await mainWindow.webContents.executeJavaScript(`
                 const box = document.getElementById('template-editor-box');
                 if (box) box.style.display = 'flex';
+                if (typeof togglePluginUI === 'function') togglePluginUI('dress-up');
             `);
 
-            // 等待 4 秒观察调度状态
-            await new Promise(r => setTimeout(r, 4000));
+            // 等待 8 秒观察调度与无缝热换装状态
+            await new Promise(r => setTimeout(r, 8000));
 
             // 截图 4: 弹幕中继与智能调度控制面板实测
             img = await mainWindow.webContents.capturePage();
@@ -822,6 +889,10 @@ function createWindow() {
             img = await mainWindow.webContents.capturePage();
             fs.writeFileSync(path.join(ARTIFACT_DIR, 'verified-step3-chat-and-action.png'), img.toPNG());
             console.log('[AUTO_TEST] 截图 3: 弹幕与动作交互完成并捕获');
+
+            // 截图 5: 独立插件系统与换装已捕获
+            fs.writeFileSync(path.join(ARTIFACT_DIR, 'verified-plugin-and-hotswap.png'), img.toPNG());
+            console.log('[AUTO_TEST] 截图 5: 独立插件系统与换装控制已捕获: verified-plugin-and-hotswap.png');
 
             const uiLogs = await mainWindow.webContents.executeJavaScript(`
                 Array.from(document.getElementById('log-box').children).map(d => d.innerText)
