@@ -94,6 +94,44 @@ ipcMain.handle('save-plugin-config', async (event, { pluginId, config }) => {
     }
 });
 
+// 打开插件独立专属操作系统窗口
+const pluginWindows = new Map();
+ipcMain.handle('open-plugin-window', async (event, { dirName, title, width = 960, height = 750 }) => {
+    try {
+        if (pluginWindows.has(dirName) && !pluginWindows.get(dirName).isDestroyed()) {
+            pluginWindows.get(dirName).focus();
+            return { ok: true };
+        }
+        const win = new BrowserWindow({
+            width: width,
+            height: height,
+            minWidth: 600,
+            minHeight: 450,
+            title: title || '插件独立控制台',
+            backgroundColor: '#0b101d',
+            autoHideMenuBar: true,
+            webPreferences: {
+                nodeIntegration: true,
+                contextIsolation: false,
+                webSecurity: false
+            }
+        });
+        const pluginUIPath = path.join(PLUGINS_DIR, dirName, 'ui.html');
+        if (fs.existsSync(pluginUIPath)) {
+            win.loadFile(pluginUIPath);
+        } else {
+            win.loadURL(`http://127.0.0.1:${PORT}/plugins/${dirName}/ui.html`);
+        }
+        pluginWindows.set(dirName, win);
+        win.on('closed', () => {
+            pluginWindows.delete(dirName);
+        });
+        return { ok: true };
+    } catch(err) {
+        return { ok: false, error: err.message };
+    }
+});
+
 function getLocalIP() {
     const interfaces = os.networkInterfaces();
     let fallback = '127.0.0.1';
@@ -885,14 +923,25 @@ function createWindow() {
             fs.writeFileSync(path.join(ARTIFACT_DIR, 'verified-danmu-system.png'), img.toPNG());
             console.log('[AUTO_TEST] 截图 4: 抖音弹幕智能中继与可配置模板面板已捕获: verified-danmu-system.png');
 
+            // 截图 5: 独立插件系统与换装已捕获
+            fs.writeFileSync(path.join(ARTIFACT_DIR, 'verified-plugin-and-hotswap.png'), img.toPNG());
+            console.log('[AUTO_TEST] 截图 5: 独立插件系统与换装控制已捕获: verified-plugin-and-hotswap.png');
+
+            // 验证弹出独立大窗口 Modal 并截图
+            console.log('[AUTO_TEST] 弹出独立大窗口 Modal...');
+            await mainWindow.webContents.executeJavaScript(`
+                if (typeof openPluginModal === 'function') openPluginModal('dress-up', '👗 智能送礼/指令无缝换装');
+            `);
+            await new Promise(r => setTimeout(r, 1800));
+            img = await mainWindow.webContents.capturePage();
+            fs.writeFileSync(path.join(ARTIFACT_DIR, 'verified-plugin-modal.png'), img.toPNG());
+            console.log('[AUTO_TEST] 截图 6: 插件独立大窗口 Modal 验证通过: verified-plugin-modal.png');
+            await mainWindow.webContents.executeJavaScript('if (typeof closePluginModal === "function") closePluginModal();');
+
             // 截图 3: 整体交互完成
             img = await mainWindow.webContents.capturePage();
             fs.writeFileSync(path.join(ARTIFACT_DIR, 'verified-step3-chat-and-action.png'), img.toPNG());
             console.log('[AUTO_TEST] 截图 3: 弹幕与动作交互完成并捕获');
-
-            // 截图 5: 独立插件系统与换装已捕获
-            fs.writeFileSync(path.join(ARTIFACT_DIR, 'verified-plugin-and-hotswap.png'), img.toPNG());
-            console.log('[AUTO_TEST] 截图 5: 独立插件系统与换装控制已捕获: verified-plugin-and-hotswap.png');
 
             const uiLogs = await mainWindow.webContents.executeJavaScript(`
                 Array.from(document.getElementById('log-box').children).map(d => d.innerText)

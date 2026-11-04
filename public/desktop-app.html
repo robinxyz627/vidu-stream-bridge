@@ -211,15 +211,102 @@
             pointer-events: none;
         }
 
-        /* 右侧中控栏 */
+        /* 右侧中控栏 (支持通过左侧竖边自由左右拉伸宽度) */
         .control-sidebar {
-            width: 440px;
+            width: var(--sidebar-width, 460px);
+            min-width: 360px;
+            max-width: 850px;
             background: var(--bg-panel);
             display: flex;
             flex-direction: column;
-            padding: 18px;
+            padding: 16px;
             gap: 14px;
             overflow-y: auto;
+            flex-shrink: 0;
+            position: relative;
+        }
+        .control-sidebar.resizing {
+            user-select: none;
+            transition: none !important;
+        }
+
+        /* 左右拖拽调整宽度的竖边分割线 */
+        .splitter-v {
+            width: 8px;
+            background: #0b101c;
+            border-left: 1px solid var(--border);
+            border-right: 1px solid var(--border);
+            cursor: col-resize;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.15s, box-shadow 0.15s;
+            user-select: none;
+            z-index: 50;
+            flex-shrink: 0;
+        }
+        .splitter-v:hover, .splitter-v.dragging {
+            background: var(--accent);
+            box-shadow: 0 0 12px rgba(0, 210, 255, 0.6);
+        }
+        .splitter-handle {
+            width: 2px;
+            height: 38px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 2px;
+            pointer-events: none;
+        }
+
+        /* 插件独立大窗口 Modal */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.82);
+            backdrop-filter: blur(8px);
+            z-index: 999999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            animation: fadeIn 0.2s ease;
+        }
+        .modal-overlay.hidden {
+            display: none !important;
+        }
+        .modal-dialog {
+            width: 960px;
+            max-width: 95vw;
+            height: 750px;
+            max-height: 92vh;
+            background: #0d1322;
+            border: 1px solid rgba(0, 210, 255, 0.4);
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.95), 0 0 40px rgba(0, 210, 255, 0.2);
+            overflow: hidden;
+        }
+        .modal-header {
+            height: 48px;
+            background: #131c31;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 16px;
+            flex-shrink: 0;
+        }
+        .modal-body {
+            flex: 1;
+            overflow: hidden;
+            position: relative;
+            background: #0b101d;
+        }
+        .modal-body iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            display: block;
         }
         .panel-title {
             font-size: 13px;
@@ -407,8 +494,13 @@
             </div>
         </div>
 
+        <!-- 左右拖拽调整侧边栏宽度分割线 (图2箭头所指竖边) -->
+        <div class="splitter-v" id="sidebar-splitter" title="按住左右拖动调整侧边栏宽度">
+            <div class="splitter-handle"></div>
+        </div>
+
         <!-- 右侧中控栏 -->
-        <div class="control-sidebar">
+        <div class="control-sidebar" id="control-sidebar">
             <!-- 1. 通用 Cookie 导入区 -->
             <div class="panel-title">🔑 凭证管理 (本地永久保存，无需重复粘贴)</div>
             <div class="card">
@@ -582,6 +674,75 @@
                         </div>
                     </div>
                 </div>
+            </div>
+
+            <!-- 2.5 实时弹幕与送礼模拟测试器 (一键测试换装与智能调度) -->
+            <div class="panel-title" style="justify-content: space-between;">
+                <span>🧪 弹幕 & 送礼模拟测试 (本地即时验证)</span>
+                <span style="font-size: 11px; font-weight: normal; color: var(--accent-green);">内置快捷通道</span>
+            </div>
+            <div class="card" style="padding: 10px;">
+                <div style="font-size: 11px; color: var(--text-dim); margin-bottom: 8px;">
+                    无需开启抖音或外部抓包工具，点击下方按钮即可直接向本地中继（<code>8010/human</code>）投递事件，<b>在左侧监视器与 OBS 中均可实时看到换装与对话效果</b>：
+                </div>
+
+                <!-- 快捷换装测试按钮组 -->
+                <div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px;">
+                    <div style="display: flex; gap: 6px;">
+                        <button class="btn" style="flex: 1; padding: 6px; font-size: 11px; background: rgba(255,102,204,0.18); color: #ff66cc; border: 1px solid rgba(255,102,204,0.4); justify-content: center;" onclick="mockSendDanmu('gift_carnival')" title="模拟送嘉年华，触发过渡台词并无缝变身小雅">
+                            🎁 模拟送【嘉年华】(换装小雅)
+                        </button>
+                        <button class="btn" style="flex: 1; padding: 6px; font-size: 11px; background: rgba(0,210,255,0.18); color: #00d2ff; border: 1px solid rgba(0,210,255,0.4); justify-content: center;" onclick="mockSendDanmu('gift_dafeiyu')" title="模拟送100抖币，触发过渡台词并切回大肥鱼">
+                            💎 模拟送【100抖币】(换装大肥鱼)
+                        </button>
+                    </div>
+                    <div style="display: flex; gap: 6px;">
+                        <button class="btn" style="flex: 1; padding: 5px; font-size: 11px; background: rgba(255,255,255,0.06); color: var(--text-main); border: 1px solid rgba(255,255,255,0.1); justify-content: center;" onclick="mockSendDanmu('cmd_xiaoya')">
+                            💬 口令：#换装 小雅
+                        </button>
+                        <button class="btn" style="flex: 1; padding: 5px; font-size: 11px; background: rgba(255,255,255,0.06); color: var(--text-main); border: 1px solid rgba(255,255,255,0.1); justify-content: center;" onclick="mockSendDanmu('cmd_dafeiyu')">
+                            💬 口令：#换装 大肥鱼
+                        </button>
+                    </div>
+                    <div style="display: flex; gap: 6px;">
+                        <button class="btn" style="flex: 1; padding: 5px; font-size: 11px; background: rgba(0,255,136,0.12); color: #00ff88; border: 1px solid rgba(0,255,136,0.3); justify-content: center;" onclick="mockSendDanmu('time_query')" title="测试本地时间感知">
+                            ⏰ 问时间：现在几点啦？
+                        </button>
+                        <button class="btn" style="flex: 1; padding: 5px; font-size: 11px; background: rgba(255,170,0,0.12); color: #ffaa00; border: 1px solid rgba(255,170,0,0.3); justify-content: center;" onclick="mockSendDanmu('spam')" title="测试水词过滤">
+                            🚫 灌水：666 (测过滤)
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 自定义事件模拟折叠面板 -->
+                <details style="background: rgba(0,0,0,0.25); border-radius: 6px; padding: 6px 8px; border: 1px solid rgba(255,255,255,0.06);">
+                    <summary style="font-size: 11px; color: var(--accent); cursor: pointer; font-weight: bold;">
+                        🛠️ 自定义模拟发送 (展开高级参数)
+                    </summary>
+                    <div style="margin-top: 8px; display: flex; flex-direction: column; gap: 6px;">
+                        <div style="display: flex; gap: 6px;">
+                            <select id="mock-type" style="width: 100px; padding: 4px; font-size: 11px; background: #162038; border: 1px solid var(--border); color: #fff; border-radius: 4px;" onchange="onMockTypeChange()">
+                                <option value="gift">🎁 送礼物</option>
+                                <option value="chat">💬 发弹幕</option>
+                                <option value="follow">💖 关注</option>
+                                <option value="enter">🚪 进房</option>
+                                <option value="like">👍 点赞</option>
+                            </select>
+                            <input type="text" id="mock-nickname" placeholder="观众昵称" value="榜一大哥" style="flex: 1; padding: 4px 6px; font-size: 11px; background: #162038; border: 1px solid var(--border); color: #fff; border-radius: 4px;">
+                        </div>
+                        <div id="mock-gift-row" style="display: flex; gap: 6px;">
+                            <input type="text" id="mock-gift-name" placeholder="礼物名称 (如: 嘉年华)" value="嘉年华" style="flex: 2; padding: 4px 6px; font-size: 11px; background: #162038; border: 1px solid var(--border); color: #fff; border-radius: 4px;">
+                            <input type="number" id="mock-diamonds" placeholder="抖币" value="3000" style="flex: 1; padding: 4px 6px; font-size: 11px; background: #162038; border: 1px solid var(--border); color: #fff; border-radius: 4px;">
+                            <input type="number" id="mock-count" placeholder="数量" value="1" style="width: 60px; padding: 4px 6px; font-size: 11px; background: #162038; border: 1px solid var(--border); color: #fff; border-radius: 4px;">
+                        </div>
+                        <div id="mock-chat-row" style="display: none;">
+                            <input type="text" id="mock-content" placeholder="弹幕内容 (如: 主播好漂亮 / #换装 小雅)" value="#换装 小雅" style="width: 100%; box-sizing: border-box; padding: 4px 6px; font-size: 11px; background: #162038; border: 1px solid var(--border); color: #fff; border-radius: 4px;">
+                        </div>
+                        <button class="btn" style="width: 100%; padding: 6px; font-size: 11px; background: linear-gradient(135deg, #00d2ff, #0077ff); color: #fff; justify-content: center; font-weight: bold; margin-top: 4px;" onclick="sendCustomMock()">
+                            🚀 立即模拟投递到 8010/human
+                        </button>
+                    </div>
+                </details>
             </div>
 
             <!-- 2.8 扩展插件中心 (独立插件架构，自带独立配置菜单) -->
@@ -1239,10 +1400,11 @@
             listEl.innerHTML = '';
             loadedPlugins.forEach(plugin => {
                 const item = document.createElement('div');
-                item.style.cssText = 'background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 8px; padding: 10px;';
+                item.style.cssText = 'background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 8px; padding: 10px; cursor: default;';
+                item.title = '提示：双击可直接弹出独立大窗口进行舒适配置';
 
                 const isEnabled = plugin.config.enabled !== false;
-                const uiUrl = `http://${activeHost}:${activePort}/plugins/${plugin.dirName}/${plugin.manifest.ui || 'ui.html'}`;
+                const uiUrl = `../plugins/${plugin.dirName}/${plugin.manifest.ui || 'ui.html'}`;
 
                 item.innerHTML = `
                     <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -1252,8 +1414,11 @@
                         </div>
                         <div style="display: flex; gap: 6px; align-items: center;">
                             ${plugin.hasUI ? `
-                                <button class="btn" style="padding: 3px 8px; font-size: 11px; background: rgba(0,210,255,0.12); color: var(--accent); border: 1px solid rgba(0,210,255,0.3); cursor: pointer;" onclick="togglePluginUI('${plugin.dirName}')">
-                                    ⚙️ 配置菜单
+                                <button class="btn" style="padding: 3px 8px; font-size: 11px; background: rgba(0,210,255,0.12); color: var(--accent); border: 1px solid rgba(0,210,255,0.3); cursor: pointer;" onclick="togglePluginUI('${plugin.dirName}')" title="展开/收起侧栏配置菜单">
+                                    ⚙️ 配置
+                                </button>
+                                <button class="btn" style="padding: 3px 8px; font-size: 11px; background: rgba(0,255,136,0.15); color: #00ff88; border: 1px solid rgba(0,255,136,0.35); cursor: pointer;" onclick="openPluginModal('${plugin.dirName}', '${plugin.manifest.name}')" title="以独立大窗口弹出配置面板，免受侧边栏宽度限制">
+                                    🗖 独立大窗口
                                 </button>
                             ` : ''}
                             <label style="display: flex; align-items: center; gap: 4px; cursor: pointer; font-size: 11px; color: ${isEnabled ? 'var(--accent-green)' : 'var(--text-dim)'};">
@@ -1267,11 +1432,50 @@
                     </div>
                     ${plugin.hasUI ? `
                         <div id="plugin-ui-box-${plugin.dirName}" style="display: none; margin-top: 10px; border-radius: 8px; overflow: hidden; border: 1px solid rgba(0,210,255,0.25); box-shadow: 0 4px 15px rgba(0,0,0,0.4);">
-                            <iframe id="plugin-iframe-${plugin.dirName}" src="${uiUrl}" style="width: 100%; height: 390px; border: none; background: #0b101d; display: block;"></iframe>
+                            <iframe id="plugin-iframe-${plugin.dirName}" src="${uiUrl}" style="width: 100%; height: 430px; border: none; background: #0b101d; display: block;"></iframe>
                         </div>
                     ` : ''}
                 `;
+
+                // 双击卡片快速弹出独立大窗口
+                item.ondblclick = (e) => {
+                    if (plugin.hasUI && e.target.tagName !== 'BUTTON' && e.target.tagName !== 'INPUT') {
+                        openPluginModal(plugin.dirName, plugin.manifest.name);
+                    }
+                };
+
                 listEl.appendChild(item);
+            });
+        }
+
+        let currentModalPlugin = null;
+        function openPluginModal(dirName, title) {
+            const plugin = loadedPlugins.find(p => p.dirName === dirName);
+            if (!plugin) return;
+            currentModalPlugin = plugin;
+            const overlay = document.getElementById('plugin-modal-overlay');
+            const iframe = document.getElementById('modal-plugin-iframe');
+            const titleEl = document.getElementById('modal-plugin-title');
+            const verEl = document.getElementById('modal-plugin-version');
+            
+            if (titleEl) titleEl.innerText = plugin.manifest.name || dirName;
+            if (verEl) verEl.innerText = `v${plugin.manifest.version || '1.0.0'}`;
+            if (iframe) iframe.src = `../plugins/${plugin.dirName}/${plugin.manifest.ui || 'ui.html'}`;
+            if (overlay) overlay.classList.remove('hidden');
+        }
+
+        function closePluginModal() {
+            const overlay = document.getElementById('plugin-modal-overlay');
+            const iframe = document.getElementById('modal-plugin-iframe');
+            if (overlay) overlay.classList.add('hidden');
+            if (iframe) iframe.src = 'about:blank';
+        }
+
+        function openInNativeWindow() {
+            if (!currentModalPlugin) return;
+            ipcRenderer.invoke('open-plugin-window', {
+                dirName: currentModalPlugin.dirName,
+                title: currentModalPlugin.manifest.name || '插件独立控制台'
             });
         }
 
@@ -2010,6 +2214,220 @@
                 badge.style.color = 'var(--text-dim)';
             }
         }, 400);
+
+        // ====================== 6. 侧边栏左右拖拽自由调节与状态持久化 ======================
+        function initSidebarSplitter() {
+            const splitter = document.getElementById('sidebar-splitter');
+            const sidebar = document.getElementById('control-sidebar');
+            if (!splitter || !sidebar) return;
+
+            // 读取已保存的宽度设置
+            try {
+                const savedWidth = localStorage.getItem('vidu_sidebar_width');
+                if (savedWidth) {
+                    const parsed = parseInt(savedWidth, 10);
+                    if (parsed >= 360 && parsed <= 900) {
+                        document.documentElement.style.setProperty('--sidebar-width', parsed + 'px');
+                        sidebar.style.width = parsed + 'px';
+                    }
+                }
+            } catch(e) {}
+
+            let isDragging = false;
+            let startX = 0;
+            let startWidth = 0;
+
+            splitter.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                startX = e.clientX;
+                startWidth = sidebar.getBoundingClientRect().width;
+                splitter.classList.add('dragging');
+                sidebar.classList.add('resizing');
+                document.body.style.cursor = 'col-resize';
+                document.body.style.userSelect = 'none';
+                e.preventDefault();
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                const deltaX = startX - e.clientX;
+                const newWidth = Math.max(360, Math.min(window.innerWidth - 320, startWidth + deltaX));
+                sidebar.style.width = newWidth + 'px';
+                document.documentElement.style.setProperty('--sidebar-width', newWidth + 'px');
+            });
+
+            window.addEventListener('mouseup', () => {
+                if (!isDragging) return;
+                isDragging = false;
+                splitter.classList.remove('dragging');
+                sidebar.classList.remove('resizing');
+                document.body.style.cursor = '';
+                document.body.style.userSelect = '';
+                try {
+                    const finalWidth = sidebar.getBoundingClientRect().width;
+                    localStorage.setItem('vidu_sidebar_width', finalWidth);
+                } catch(e) {}
+            });
+        }
+        initSidebarSplitter();
+
+        // ====================== 7. 弹幕 & 送礼模拟测试器逻辑 ======================
+        async function mockSendDanmu(presetKey) {
+            const host = (document.getElementById('custom-host-input') && document.getElementById('custom-host-input').value.trim()) || defaultDetectedHost || '127.0.0.1';
+            const cleanHost = host.replace('http://', '').replace('https://', '').split('/')[0].split(':')[0] || '127.0.0.1';
+            const port = currentDanmuPort || 8010;
+            const url = `http://${cleanHost}:${port}/human`;
+
+            let payload = null;
+            if (presetKey === 'gift_carnival') {
+                payload = {
+                    type: 'gift',
+                    nickname: '榜一大哥',
+                    gender: '男',
+                    giftName: '嘉年华',
+                    giftCount: 1,
+                    diamondCount: 3000
+                };
+            } else if (presetKey === 'gift_dafeiyu') {
+                payload = {
+                    type: 'gift',
+                    nickname: '真爱粉小宝',
+                    gender: '女',
+                    giftName: '小心心',
+                    giftCount: 100,
+                    diamondCount: 100
+                };
+            } else if (presetKey === 'cmd_xiaoya') {
+                payload = {
+                    type: 'chat',
+                    nickname: '热心观众',
+                    gender: '男',
+                    content: '#换装 小雅'
+                };
+            } else if (presetKey === 'cmd_dafeiyu') {
+                payload = {
+                    type: 'chat',
+                    nickname: '热心观众',
+                    gender: '女',
+                    content: '#换装 大肥鱼'
+                };
+            } else if (presetKey === 'time_query') {
+                payload = {
+                    type: 'chat',
+                    nickname: '时间助手',
+                    gender: '女',
+                    content: '小鱼现在几点钟啦？'
+                };
+            } else if (presetKey === 'spam') {
+                payload = {
+                    type: 'chat',
+                    nickname: '水军号',
+                    gender: '男',
+                    content: '666'
+                };
+            }
+
+            if (!payload) return;
+
+            try {
+                appendLog(`[模拟测试] 正在向 ${url} 投递事件: [${payload.type}] ${payload.nickname} (${payload.giftName || payload.content})...`);
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const resJson = await res.json();
+                appendLog(`[模拟测试] ✅ 投递成功！返回结果: ${JSON.stringify(resJson)}`);
+            } catch(err) {
+                appendLog(`[模拟测试] ❌ 投递失败: ${err.message} (请确认 8010 端口已正常监听)`);
+            }
+        }
+
+        function onMockTypeChange() {
+            const type = document.getElementById('mock-type').value;
+            const giftRow = document.getElementById('mock-gift-row');
+            const chatRow = document.getElementById('mock-chat-row');
+            if (type === 'gift') {
+                giftRow.style.display = 'flex';
+                chatRow.style.display = 'none';
+            } else {
+                giftRow.style.display = 'none';
+                chatRow.style.display = 'block';
+            }
+        }
+
+        async function sendCustomMock() {
+            const type = document.getElementById('mock-type').value;
+            const nickname = document.getElementById('mock-nickname').value.trim() || '测试观众';
+            let payload = { type, nickname, gender: '男' };
+
+            if (type === 'gift') {
+                payload.giftName = document.getElementById('mock-gift-name').value.trim() || '嘉年华';
+                payload.diamondCount = parseInt(document.getElementById('mock-diamonds').value, 10) || 100;
+                payload.giftCount = parseInt(document.getElementById('mock-count').value, 10) || 1;
+            } else if (type === 'chat') {
+                payload.content = document.getElementById('mock-content').value.trim() || '#换装 小雅';
+            } else if (type === 'like') {
+                payload.likeCount = 10;
+            }
+
+            const host = (document.getElementById('custom-host-input') && document.getElementById('custom-host-input').value.trim()) || defaultDetectedHost || '127.0.0.1';
+            const cleanHost = host.replace('http://', '').replace('https://', '').split('/')[0].split(':')[0] || '127.0.0.1';
+            const port = currentDanmuPort || 8010;
+            const url = `http://${cleanHost}:${port}/human`;
+
+            try {
+                appendLog(`[自定义测试] 正在投递到 ${url}: [${payload.type}] ${payload.nickname}...`);
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const resJson = await res.json();
+                appendLog(`[自定义测试] ✅ 投递成功: ${JSON.stringify(resJson)}`);
+            } catch(err) {
+                appendLog(`[自定义测试] ❌ 投递失败: ${err.message}`);
+            }
+        }
+
+        // ====================== 8. PostMessage 通信桥梁总线 ======================
+        window.addEventListener('message', async (event) => {
+            if (!event.data || event.data.type !== 'vidu-bridge-request') return;
+            const { reqId, method, args } = event.data;
+            try {
+                if (window.ViduPluginBridge && typeof window.ViduPluginBridge[method] === 'function') {
+                    const res = await window.ViduPluginBridge[method](...(args || []));
+                    event.source.postMessage({ type: 'vidu-bridge-response', reqId, ok: true, result: res }, '*');
+                } else {
+                    event.source.postMessage({ type: 'vidu-bridge-response', reqId, ok: false, error: 'Unknown bridge method: ' + method }, '*');
+                }
+            } catch(err) {
+                event.source.postMessage({ type: 'vidu-bridge-response', reqId, ok: false, error: err.message }, '*');
+            }
+        });
     </script>
+
+    <!-- 插件独立全屏大窗口 Modal (支持放大与弹窗编辑) -->
+    <div id="plugin-modal-overlay" class="modal-overlay hidden" onclick="if(event.target===this) closePluginModal()">
+        <div class="modal-dialog">
+            <div class="modal-header">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span id="modal-plugin-title" style="font-weight: bold; font-size: 14px; color: var(--accent);">🧩 插件独立控制面板</span>
+                    <span id="modal-plugin-version" style="font-size: 11px; color: var(--text-dim); background: rgba(255,255,255,0.06); padding: 1px 6px; border-radius: 4px;">v1.0.0</span>
+                </div>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <button class="btn" style="padding: 4px 10px; font-size: 11px; background: rgba(0,210,255,0.15); color: var(--accent); border: 1px solid rgba(0,210,255,0.3);" onclick="openInNativeWindow()" title="在独立的系统新窗口中打开">
+                        🗗 独立新窗口打开
+                    </button>
+                    <button class="btn btn-hangup" style="padding: 4px 12px; font-size: 11px;" onclick="closePluginModal()">
+                        ✕ 关闭
+                    </button>
+                </div>
+            </div>
+            <div class="modal-body">
+                <iframe id="modal-plugin-iframe" src="about:blank"></iframe>
+            </div>
+        </div>
+    </div>
 </body>
 </html>

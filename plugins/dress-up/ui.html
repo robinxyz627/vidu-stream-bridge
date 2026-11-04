@@ -25,6 +25,7 @@
             color: var(--text-main);
             padding: 12px;
             font-size: 12px;
+            overflow-x: hidden;
         }
         .header-row {
             display: flex;
@@ -48,14 +49,17 @@
             gap: 6px;
             cursor: pointer;
             font-size: 12px;
+            color: var(--accent-green);
         }
         .form-row {
             display: flex;
+            flex-wrap: wrap;
             gap: 10px;
-            margin-bottom: 10px;
+            margin-bottom: 8px;
         }
         .form-group {
             flex: 1;
+            min-width: 140px;
             display: flex;
             flex-direction: column;
             gap: 4px;
@@ -72,6 +76,7 @@
             border-radius: 6px;
             font-size: 11px;
             outline: none;
+            box-sizing: border-box;
         }
         input:focus, select:focus, textarea:focus {
             border-color: var(--accent);
@@ -89,6 +94,7 @@
             align-items: center;
             gap: 4px;
             transition: all 0.2s;
+            white-space: nowrap;
         }
         .btn:hover {
             opacity: 0.9;
@@ -99,21 +105,29 @@
             color: var(--accent-pink);
             border: 1px solid rgba(255, 51, 102, 0.4);
         }
-        .rules-table {
+        .table-wrap {
             width: 100%;
-            border-collapse: collapse;
+            overflow-x: auto;
+            border-radius: 6px;
             margin-top: 8px;
             margin-bottom: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+        .rules-table {
+            width: 100%;
+            min-width: 420px;
+            border-collapse: collapse;
         }
         .rules-table th {
             text-align: left;
             font-size: 11px;
             color: var(--text-dim);
-            padding: 6px;
+            padding: 6px 8px;
             border-bottom: 1px solid var(--border);
+            background: rgba(0, 0, 0, 0.2);
         }
         .rules-table td {
-            padding: 6px;
+            padding: 6px 8px;
             font-size: 11px;
             border-bottom: 1px solid rgba(255, 255, 255, 0.05);
         }
@@ -125,6 +139,7 @@
             background: rgba(0, 210, 255, 0.15);
             color: var(--accent);
             border: 1px solid rgba(0, 210, 255, 0.3);
+            white-space: nowrap;
         }
         .card-inner {
             background: var(--bg-card);
@@ -133,18 +148,32 @@
             padding: 10px;
             margin-bottom: 10px;
         }
+        .add-rule-box {
+            background: rgba(0,0,0,0.25);
+            border: 1px dashed var(--border);
+            border-radius: 6px;
+            padding: 8px;
+            margin-top: 8px;
+        }
+        .add-rule-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            align-items: center;
+        }
         .toast {
             position: fixed;
-            bottom: 10px;
-            right: 10px;
+            bottom: 12px;
+            right: 12px;
             background: rgba(0, 255, 136, 0.2);
             color: #00ff88;
             border: 1px solid rgba(0, 255, 136, 0.4);
-            padding: 6px 12px;
+            padding: 6px 14px;
             border-radius: 6px;
             font-size: 11px;
             display: none;
-            z-index: 100;
+            z-index: 1000;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
         }
     </style>
 </head>
@@ -159,11 +188,11 @@
 
     <div class="card-inner">
         <div class="form-row">
-            <div class="form-group" style="flex: 1;">
+            <div class="form-group" style="flex: 1; min-width: 120px;">
                 <label>换装冷却防抖时间 (秒):</label>
-                <input type="number" id="cooldown-input" value="40" min="5" max="300" style="width: 100px;">
+                <input type="number" id="cooldown-input" value="40" min="5" max="300">
             </div>
-            <div class="form-group" style="flex: 2;">
+            <div class="form-group" style="flex: 2; min-width: 220px;">
                 <label>换装默认过渡台词模板:</label>
                 <input type="text" id="speech-input" value="收到【{nickname}】的心意，我先去换套新衣服，马上回来哦~">
             </div>
@@ -173,51 +202,56 @@
     <div class="card-inner">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
             <span style="font-weight: bold; color: var(--accent);">🎯 换装触发规则列表:</span>
-            <span style="font-size: 10px; color: var(--text-dim);">支持礼物名、抖币价值门槛、弹幕指令</span>
+            <span style="font-size: 10px; color: var(--text-dim);">支持礼物名、抖币价值门槛、弹幕口令</span>
         </div>
 
-        <table class="rules-table">
-            <thead>
-                <tr>
-                    <th style="width: 90px;">触发条件</th>
-                    <th style="width: 100px;">触发值</th>
-                    <th style="width: 120px;">目标角色</th>
-                    <th>过渡台词</th>
-                    <th style="width: 50px;">操作</th>
-                </tr>
-            </thead>
-            <tbody id="rules-tbody">
-                <!-- 动态渲染 -->
-            </tbody>
-        </table>
+        <div class="table-wrap">
+            <table class="rules-table">
+                <thead>
+                    <tr>
+                        <th style="width: 80px;">触发条件</th>
+                        <th style="width: 90px;">触发值</th>
+                        <th style="width: 110px;">目标角色</th>
+                        <th>过渡台词</th>
+                        <th style="width: 48px; text-align: center;">操作</th>
+                    </tr>
+                </thead>
+                <tbody id="rules-tbody">
+                    <!-- 动态渲染 -->
+                </tbody>
+            </table>
+        </div>
 
         <!-- 添加规则表单 -->
-        <div style="background: rgba(0,0,0,0.25); border: 1px dashed var(--border); border-radius: 6px; padding: 8px; margin-top: 8px;">
-            <div style="font-size: 11px; color: var(--accent); margin-bottom: 6px; font-weight: bold;">➕ 添加新换装规则:</div>
-            <div style="display: grid; grid-template-columns: 110px 110px 140px 1fr 60px; gap: 6px; align-items: center;">
-                <select id="new-rule-type">
-                    <option value="gift_name">🎁 礼物名称</option>
-                    <option value="gift_diamonds">💎 抖币价值≥</option>
-                    <option value="chat_command">💬 弹幕口令</option>
+        <div class="add-rule-box">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <span style="font-size: 11px; color: var(--accent); font-weight: bold;">➕ 添加新换装规则:</span>
+                <button class="btn" style="padding: 2px 6px; font-size: 10px; background: rgba(255,255,255,0.06); color: var(--text-dim);" onclick="refreshAvatars()" title="重新获取工作台角色列表">🔄 刷新角色</button>
+            </div>
+            <div class="add-rule-grid">
+                <select id="new-rule-type" style="width: 95px;">
+                    <option value="gift_name">🎁 礼物名</option>
+                    <option value="gift_diamonds">💎 抖币≥</option>
+                    <option value="chat_command">💬 口令</option>
                 </select>
-                <input type="text" id="new-rule-trigger" placeholder="例如: 嘉年华 / 100">
-                <select id="new-rule-avatar">
-                    <option value="">加载角色中...</option>
+                <input type="text" id="new-rule-trigger" placeholder="触发值 (如: 嘉年华)" style="width: 110px; flex: 1; min-width: 100px;">
+                <select id="new-rule-avatar" style="width: 130px; flex: 1; min-width: 120px;">
+                    <option value="">正在同步角色中...</option>
                 </select>
-                <input type="text" id="new-rule-speech" placeholder="选填: 个性化过渡台词">
-                <button class="btn" onclick="addNewRule()" style="padding: 6px 8px; justify-content: center;">添加</button>
+                <input type="text" id="new-rule-speech" placeholder="选填: 个性化过渡台词" style="flex: 2; min-width: 130px;">
+                <button class="btn" onclick="addNewRule()" style="padding: 6px 12px; justify-content: center;">添加</button>
             </div>
         </div>
     </div>
 
     <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px;">
-        <button class="btn" style="background: var(--accent-green);" onclick="saveSettings()">💾 保存换装配置并立即生效</button>
+        <button class="btn" style="background: var(--accent-green); color: #000;" onclick="saveSettings()">💾 保存换装配置并立即生效</button>
     </div>
 
     <div id="toast" class="toast">✅ 配置已成功保存！</div>
 
     <script>
-        const bridge = window.parent && window.parent.ViduPluginBridge ? window.parent.ViduPluginBridge : null;
+        let bridge = null;
         let currentConfig = {
             enabled: true,
             cooldown: 40,
@@ -226,47 +260,115 @@
         };
         let availableAvatars = [];
 
-        async function init() {
-            if (bridge) {
-                // 加载角色列表
-                try {
-                    availableAvatars = await bridge.getAvatars();
-                    renderAvatarSelect();
-                } catch(e) {
-                    console.warn('获取角色失败:', e);
+        // 建立高容错通讯桥梁 (支持 Direct / Opener / PostMessage)
+        function initBridge() {
+            try {
+                if (window.parent && window.parent.ViduPluginBridge) {
+                    return window.parent.ViduPluginBridge;
                 }
+            } catch(e) {}
+            try {
+                if (window.opener && window.opener.ViduPluginBridge) {
+                    return window.opener.ViduPluginBridge;
+                }
+            } catch(e) {}
 
-                // 加载当前配置
-                try {
-                    const cfg = await bridge.loadConfig('dress-up');
-                    if (cfg && cfg.rules) {
-                        currentConfig = cfg;
-                    }
-                } catch(e) {
-                    console.warn('加载配置失败:', e);
+            // PostMessage 通信封装
+            const pending = new Map();
+            let reqCounter = 0;
+            window.addEventListener('message', (e) => {
+                if (!e.data || e.data.type !== 'vidu-bridge-response') return;
+                const { reqId, ok, result, error } = e.data;
+                if (pending.has(reqId)) {
+                    const { resolve, reject } = pending.get(reqId);
+                    pending.delete(reqId);
+                    if (ok) resolve(result);
+                    else reject(new Error(error));
                 }
+            });
+
+            const call = (method, ...args) => {
+                return new Promise((resolve, reject) => {
+                    const reqId = ++reqCounter;
+                    pending.set(reqId, { resolve, reject });
+                    const target = (window.parent && window.parent !== window) ? window.parent : window.opener;
+                    if (target) {
+                        target.postMessage({ type: 'vidu-bridge-request', reqId, method, args }, '*');
+                    } else {
+                        reject(new Error('未找到宿主通信窗口'));
+                    }
+                });
+            };
+
+            return {
+                getAvatars: () => call('getAvatars'),
+                getCurrentAvatar: () => call('getCurrentAvatar'),
+                switchAvatar: (id, name) => call('switchAvatar', id, name),
+                sendChat: (t) => call('sendChat', t),
+                sendAction: (a) => call('sendAction', a),
+                loadConfig: (id) => call('loadConfig', id),
+                saveConfig: (id, c) => call('saveConfig', id, c),
+                log: (m) => call('log', m),
+                onDanmu: () => {}
+            };
+        }
+
+        async function init() {
+            bridge = initBridge();
+
+            // 1. 读取持久化配置
+            try {
+                const cfg = await bridge.loadConfig('dress-up');
+                if (cfg && cfg.rules) {
+                    currentConfig = cfg;
+                }
+            } catch(e) {
+                console.warn('[UI] 读取配置失败:', e);
+            }
+            renderUI();
+
+            // 2. 轮询同步角色列表
+            refreshAvatars(12);
+        }
+
+        async function refreshAvatars(maxRetries = 1) {
+            if (!bridge) return;
+            try {
+                const roles = await bridge.getAvatars();
+                if (roles && roles.length > 0) {
+                    availableAvatars = roles;
+                    renderAvatarSelect();
+                    return;
+                }
+            } catch(e) {
+                console.warn('[UI] 获取角色异常:', e);
             }
 
-            renderUI();
+            if (maxRetries > 1) {
+                setTimeout(() => refreshAvatars(maxRetries - 1), 1000);
+            } else {
+                renderAvatarSelect();
+            }
         }
 
         function renderAvatarSelect() {
             const sel = document.getElementById('new-rule-avatar');
             sel.innerHTML = '';
             if (!availableAvatars || availableAvatars.length === 0) {
-                sel.innerHTML = '<option value="">暂未获取到角色</option>';
+                sel.innerHTML = '<option value="">未加载到角色(请先在工作台登录)</option>';
                 return;
             }
             availableAvatars.forEach(av => {
                 const opt = document.createElement('option');
                 opt.value = av.id;
-                opt.innerText = `${av.name} (${av.avatar_type === 'system' ? '官方' : '自定义'})`;
+                const isLand = av.name === '小雅';
+                opt.innerText = `${av.name} ${isLand ? '(横屏)' : ''} [${av.avatar_type === 'system' ? '官方' : '自定义'}]`;
                 sel.appendChild(opt);
             });
         }
 
         function renderUI() {
-            document.getElementById('plugin-switch').checked = !!currentConfig.enabled;
+            document.getElementById('plugin-switch').checked = currentConfig.enabled !== false;
             document.getElementById('cooldown-input').value = currentConfig.cooldown || 40;
             document.getElementById('speech-input').value = currentConfig.transition_speech || '';
 
@@ -291,7 +393,7 @@
                     <td style="font-weight: bold; color: #a5f3fc;">${r.trigger}</td>
                     <td style="color: var(--accent); font-weight: 500;">${r.targetAvatarName || r.targetAvatarId}</td>
                     <td style="color: var(--text-dim); font-size: 10px; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${r.speech || '-'}</td>
-                    <td>
+                    <td style="text-align: center;">
                         <button class="btn btn-danger" style="padding: 2px 6px; font-size: 10px;" onclick="deleteRule(${idx})">删除</button>
                     </td>
                 `;
@@ -308,11 +410,11 @@
             const speech = document.getElementById('new-rule-speech').value.trim();
 
             if (!trigger) {
-                alert('请填写触发值！');
+                alert('请填写触发值（如礼物名或口令文本）！');
                 return;
             }
             if (!targetAvatarId) {
-                alert('请选择目标角色！');
+                alert('请先选择目标角色！');
                 return;
             }
 
@@ -356,7 +458,6 @@
             setTimeout(() => { toast.style.display = 'none'; }, 2000);
         }
 
-        // 初始化
         window.addEventListener('DOMContentLoaded', init);
     </script>
 </body>
