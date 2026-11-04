@@ -154,6 +154,22 @@ let mainWindow = null;
 // OBS 局域网推流客户端管理 (支持多客户端、独立会话隔离)
 let viduHostClient = null;
 const obsClients = new Map(); // clientId -> { ws, ip }
+let isSafetyMaskActive = false; // 平台应急安全审核大方块马赛克遮罩状态
+
+ipcMain.handle('set-safety-mask', async (event, enabled) => {
+    isSafetyMaskActive = !!enabled;
+    console.log(`[Safety Mask] 应急安全审核遮罩状态变更: ${isSafetyMaskActive ? '🔴 激活安全审核遮罩' : '🟢 正常推流'}`);
+    for (const [cId, target] of obsClients.entries()) {
+        if (target.ws && target.ws.readyState === WebSocket.OPEN) {
+            target.ws.send(JSON.stringify({ type: 'safety-mask', enabled: isSafetyMaskActive }));
+        }
+    }
+    return { ok: true, active: isSafetyMaskActive };
+});
+
+ipcMain.handle('get-safety-mask', async () => {
+    return { ok: true, active: isSafetyMaskActive };
+});
 
 server.on('error', (err) => {
     if (err.code === 'EADDRINUSE') {
@@ -238,6 +254,11 @@ try {
                 clientId: clientId,
                 hostIP: localIP
             }));
+
+            // 如果当前处于应急安全审核中，立即向新接入的 OBS 施加遮罩与静音
+            if (isSafetyMaskActive) {
+                ws.send(JSON.stringify({ type: 'safety-mask', enabled: true }));
+            }
 
             // 通知宿主为该客户端单独开启 WebRTC 实例
             if (viduHostClient && viduHostClient.readyState === WebSocket.OPEN) {
@@ -937,6 +958,34 @@ function createWindow() {
             fs.writeFileSync(path.join(ARTIFACT_DIR, 'verified-plugin-modal.png'), img.toPNG());
             console.log('[AUTO_TEST] 截图 6: 插件独立大窗口 Modal 验证通过: verified-plugin-modal.png');
             await mainWindow.webContents.executeJavaScript('if (typeof closePluginModal === "function") closePluginModal();');
+
+            // 验证 7: 应急安全审核大方块马赛克遮罩与 OBS 同步
+            console.log('[AUTO_TEST] 激活安全审核大方块马赛克遮罩...');
+            await mainWindow.webContents.executeJavaScript('toggleSafetyMask();');
+            await new Promise(r => setTimeout(r, 1200));
+            let maskImg = await mainWindow.webContents.capturePage();
+            fs.writeFileSync(path.join(ARTIFACT_DIR, 'verified-workbench-safety-mask.png'), maskImg.toPNG());
+            console.log('[AUTO_TEST] 截图 7: 工作台安全审核马赛克遮罩已捕获: verified-workbench-safety-mask.png');
+
+            // 验证 OBS 端安全审核遮罩与静音状态
+            const obsMaskWin = new BrowserWindow({
+                width: 540,
+                height: 960,
+                show: true,
+                backgroundColor: '#000',
+                webPreferences: { nodeIntegration: false, contextIsolation: true }
+            });
+            obsMaskWin.loadURL(`http://127.0.0.1:${PORT}/obs.html`);
+            await new Promise(r => setTimeout(r, 2500));
+            const obsMaskImg = await obsMaskWin.capturePage();
+            fs.writeFileSync(path.join(ARTIFACT_DIR, 'verified-obs-safety-mask.png'), obsMaskImg.toPNG());
+            console.log('[AUTO_TEST] 截图 8: OBS 客户端安全审核马赛克遮罩与静音已捕获: verified-obs-safety-mask.png');
+            obsMaskWin.close();
+
+            // 解除安全审核遮罩
+            await mainWindow.webContents.executeJavaScript('toggleSafetyMask();');
+            console.log('[AUTO_TEST] 解除安全审核马赛克遮罩，恢复正常推流');
+            await new Promise(r => setTimeout(r, 1000));
 
             // 截图 3: 整体交互完成
             img = await mainWindow.webContents.capturePage();

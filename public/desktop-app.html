@@ -308,6 +308,109 @@
             border: none;
             display: block;
         }
+
+        /* 应急安全审核按钮与遮罩样式 */
+        .btn-safety {
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text-main);
+            border: 1px solid var(--border);
+            font-size: 13px;
+            padding: 8px 14px;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .btn-safety:hover {
+            background: rgba(255, 187, 0, 0.15);
+            border-color: rgba(255, 187, 0, 0.4);
+            color: #ffbb00;
+        }
+        .btn-safety.active {
+            background: rgba(255, 51, 102, 0.25) !important;
+            border-color: #ff3366 !important;
+            color: #ff4d79 !important;
+            box-shadow: 0 0 15px rgba(255, 51, 102, 0.5);
+            animation: pulseWarnBtn 1.5s infinite;
+        }
+        @keyframes pulseWarnBtn {
+            0%, 100% { box-shadow: 0 0 10px rgba(255, 51, 102, 0.3); }
+            50% { box-shadow: 0 0 25px rgba(255, 51, 102, 0.7); }
+        }
+
+        /* 应急安全审核大方块马赛克遮罩 */
+        .safety-mask {
+            position: absolute;
+            inset: 0;
+            z-index: 999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            background: #060913;
+        }
+        .safety-mask-pattern {
+            position: absolute;
+            inset: 0;
+            background-image: 
+                linear-gradient(45deg, #10192e 25%, transparent 25%), 
+                linear-gradient(-45deg, #10192e 25%, transparent 25%), 
+                linear-gradient(45deg, transparent 75%, #10192e 75%), 
+                linear-gradient(-45deg, transparent 75%, #10192e 75%);
+            background-size: 38px 38px;
+            background-position: 0 0, 0 19px, 19px -19px, -19px 0px;
+            filter: blur(1.5px);
+            opacity: 0.95;
+        }
+        .safety-mask-card {
+            position: relative;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            background: rgba(10, 15, 28, 0.92);
+            border: 2px solid rgba(255, 187, 0, 0.45);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.9), 0 0 40px rgba(255, 187, 0, 0.25);
+            padding: 28px 42px;
+            border-radius: 18px;
+            backdrop-filter: blur(14px);
+            animation: pulseCard 2.5s infinite ease-in-out;
+            text-align: center;
+        }
+        @keyframes pulseCard {
+            0%, 100% { border-color: rgba(255, 187, 0, 0.45); box-shadow: 0 0 30px rgba(255, 187, 0, 0.2); }
+            50% { border-color: rgba(255, 187, 0, 0.85); box-shadow: 0 0 55px rgba(255, 187, 0, 0.45); }
+        }
+        .safety-warn-icon {
+            filter: drop-shadow(0 0 15px rgba(255, 187, 0, 0.6));
+            animation: bounceWarn 1.8s infinite ease-in-out;
+        }
+        @keyframes bounceWarn {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-4px); }
+        }
+        .safety-title {
+            color: #ffffff;
+            font-size: 28px;
+            font-weight: 900;
+            letter-spacing: 6px;
+            text-shadow: 0 4px 15px rgba(0, 0, 0, 0.8);
+            font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Segoe UI", sans-serif;
+        }
+        .safety-subtitle {
+            color: #ffbb00;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            font-family: Arial, sans-serif;
+        }
+        .safety-tip {
+            color: #94a3b8;
+            font-size: 12px;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 5px 14px;
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
         .panel-title {
             font-size: 13px;
             font-weight: 700;
@@ -460,6 +563,10 @@
             <button class="btn btn-hangup" id="btn-stop" onclick="stopLive()" style="display: none;">
                 <span>🛑</span> 挂断通话
             </button>
+            <button class="btn btn-safety" id="btn-safety-mask" onclick="toggleSafetyMask()" title="推流应急安全审核大方块马赛克遮罩 (快捷键 F9)">
+                <span id="safety-mask-icon">🛡️</span>
+                <span id="safety-mask-text">安全审核</span>
+            </button>
             <button class="btn" style="background: rgba(255,255,255,0.08); color: #fff; padding: 6px 12px; font-size: 12px;" onclick="openLoginView()" title="直接在软件内置窗口登录一次，永久保存">
                 <span>🔑</span> 窗口内扫码登录
             </button>
@@ -490,6 +597,22 @@
                         <polygon points="10 8 16 12 10 16 10 8" fill="currentColor"></polygon>
                     </svg>
                     <span id="placeholder-text" style="font-size: 13px; line-height: 1.6;">已加载本地凭证<br>点击上方「开始纯净开播」即可上线</span>
+                </div>
+                <!-- 应急安全审核大方块马赛克遮罩 (工作台监视器同步呈现) -->
+                <div id="stage-safety-overlay" class="safety-mask hidden">
+                    <div class="safety-mask-pattern"></div>
+                    <div class="safety-mask-card">
+                        <div class="safety-warn-icon">
+                            <svg width="68" height="68" viewBox="0 0 24 24" fill="none" stroke="#ffbb00" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                                <line x1="12" y1="9" x2="12" y2="13"></line>
+                                <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                            </svg>
+                        </div>
+                        <div class="safety-title" style="font-size: 26px;">安全审核中</div>
+                        <div class="safety-subtitle" style="font-size: 11px;">STREAM SAFETY AUDIT IN PROGRESS</div>
+                        <div class="safety-tip" style="font-size: 11px;">⚠️ 触发平台应急安全审核机制 · 画面及声音已屏蔽</div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1315,8 +1438,8 @@
                     name: opt ? opt.text.split(' ')[0] : roleSelect.value
                 };
             },
-            switchAvatar: (targetAvatarId, targetName) => {
-                return switchAvatarSeamless(targetAvatarId, targetName);
+            switchAvatar: (targetAvatarId, targetName, options) => {
+                return switchAvatarSeamless(targetAvatarId, targetName, options);
             },
             sendChat: (text) => {
                 return triggerInput(text);
@@ -1497,14 +1620,17 @@
             appendLog(`[插件系统] 插件 [${plugin.manifest.name}] 已${enabled ? '启用' : '禁用'}`);
         }
 
-        // 核心黑科技：A/B 双舞台零黑屏无缝换装调度器
-        async function switchAvatarSeamless(targetAvatarId, targetName) {
+        // 核心黑科技：A/B 双舞台零黑屏无缝换装调度器 (支持过渡等待时长，确保原角色讲完台词)
+        async function switchAvatarSeamless(targetAvatarId, targetName, options = {}) {
             if (isHotSwapping) {
                 appendLog(`⏳ 正在进行另一次换装中，已忽略重复换装请求`);
                 return { ok: false, reason: 'busy' };
             }
 
             isHotSwapping = true;
+            const minDelayMs = (options && options.minDelay) ? Number(options.minDelay) : 0;
+            const switchStartTime = Date.now();
+
             const standbyKey = activeStage === 'a' ? 'b' : 'a';
             const activeKey = activeStage;
             const standbyWV = document.getElementById(`stage-webview-${standbyKey}`);
@@ -1549,8 +1675,15 @@
                 return { ok: false, reason: 'timeout' };
             }
 
-            // 4. 等待 500ms 保证新视频轨道平稳解码
-            await new Promise(r => setTimeout(r, 500));
+            // 4. 计算换装过渡缓冲等待用时（保证原角色念完口播，避免上个画面台词被腰斩）
+            const elapsed = Date.now() - switchStartTime;
+            if (minDelayMs > 0 && elapsed < minDelayMs) {
+                const waitTime = minDelayMs - elapsed;
+                appendLog(`⏳ [换装缓冲等待] 新角色已就绪，正在预留 ${(waitTime / 1000).toFixed(1)} 秒等待原角色播完过渡词...`);
+                await new Promise(r => setTimeout(r, waitTime));
+            } else {
+                await new Promise(r => setTimeout(r, 500));
+            }
 
             // 5. 将推流中继无缝热迁移至 standbyWV
             appendLog(`🎥 新角色画面已就绪 (${streamMeta.w}x${streamMeta.h})，正在向 OBS 实时热换轨...`);
@@ -2270,6 +2403,53 @@
             });
         }
         initSidebarSplitter();
+
+        // ====================== 6.5 应急安全审核大方块马赛克遮罩系统 ======================
+        let isSafetyMaskActive = false;
+
+        async function toggleSafetyMask() {
+            isSafetyMaskActive = !isSafetyMaskActive;
+            updateSafetyMaskUI();
+            try {
+                await ipcRenderer.invoke('set-safety-mask', isSafetyMaskActive);
+                appendLog(isSafetyMaskActive ? '⚠️ [应急安全审核] 画面与音频已打上大方块马赛克并在 OBS 端静音屏蔽！' : '✅ [安全审核解除] 已恢复正常推流');
+            } catch(e) {
+                console.error('设置安全审核失败:', e);
+            }
+        }
+
+        function updateSafetyMaskUI() {
+            const btn = document.getElementById('btn-safety-mask');
+            const icon = document.getElementById('safety-mask-icon');
+            const text = document.getElementById('safety-mask-text');
+            const overlay = document.getElementById('stage-safety-overlay');
+            if (isSafetyMaskActive) {
+                if (btn) btn.className = 'btn btn-safety active';
+                if (icon) icon.innerText = '⚠️';
+                if (text) text.innerText = '审核中 (点击解除)';
+                if (overlay) overlay.classList.remove('hidden');
+            } else {
+                if (btn) btn.className = 'btn btn-safety';
+                if (icon) icon.innerText = '🛡️';
+                if (text) text.innerText = '安全审核';
+                if (overlay) overlay.classList.add('hidden');
+            }
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'F9') {
+                e.preventDefault();
+                toggleSafetyMask();
+            }
+        });
+
+        // 启动时同步安全审核状态
+        ipcRenderer.invoke('get-safety-mask').then(res => {
+            if (res && res.active) {
+                isSafetyMaskActive = true;
+                updateSafetyMaskUI();
+            }
+        }).catch(() => {});
 
         // ====================== 7. 弹幕 & 送礼模拟测试器逻辑 ======================
         async function mockSendDanmu(presetKey) {

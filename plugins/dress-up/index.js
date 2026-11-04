@@ -69,7 +69,8 @@ module.exports = function createDressUpPlugin(bridge) {
                 }
 
                 lastSwitchTime = now;
-                bridge.log(`🎉 👗 [换装插件] 成功触发无缝换装！由观众【${event.nickname}】触发 -> 变身为【${rule.targetAvatarName || rule.targetAvatarId}】`);
+                const switchDelay = (config.switch_delay !== undefined) ? config.switch_delay : 7.5;
+                bridge.log(`🎉 👗 [换装插件] 成功触发无缝换装！由观众【${event.nickname}】触发 -> 变身为【${rule.targetAvatarName || rule.targetAvatarId}】(预留过渡等待: ${switchDelay}s)`);
 
                 // 1. 注入过渡台词
                 const speechTpl = rule.speech || config.transition_speech || "收到心意啦，我先去换套衣服，马上回来哦~";
@@ -80,8 +81,8 @@ module.exports = function createDressUpPlugin(bridge) {
 
                 bridge.sendChat(speech);
 
-                // 2. 触发底层的 A/B 双舞台无缝热换装！
-                bridge.switchAvatar(rule.targetAvatarId, rule.targetAvatarName);
+                // 2. 触发底层的 A/B 双舞台无缝热换装，传入预留过渡延迟，保证上个场景播完台词
+                bridge.switchAvatar(rule.targetAvatarId, rule.targetAvatarName, { minDelay: switchDelay * 1000 });
                 break;
             }
         }

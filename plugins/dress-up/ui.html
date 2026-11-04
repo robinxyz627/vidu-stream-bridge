@@ -192,10 +192,17 @@
                 <label>换装冷却防抖时间 (秒):</label>
                 <input type="number" id="cooldown-input" value="40" min="5" max="300">
             </div>
+            <div class="form-group" style="flex: 1; min-width: 130px;">
+                <label>换装过渡等待用时 (秒):</label>
+                <input type="number" id="switch-delay-input" value="7.5" min="2" max="30" step="0.5">
+            </div>
             <div class="form-group" style="flex: 2; min-width: 220px;">
                 <label>换装默认过渡台词模板:</label>
                 <input type="text" id="speech-input" value="收到【{nickname}】的心意，我先去换套新衣服，马上回来哦~">
             </div>
+        </div>
+        <div style="font-size: 10px; color: var(--text-dim); margin-top: 2px; line-height: 1.4;">
+            💡 <b>过渡等待时长说明</b>：预留给当前角色口播说完换装台词的总时长（推荐 7~8 秒），确保上个角色把话说完再切入新画面，避免突兀打断。
         </div>
     </div>
 
@@ -370,6 +377,7 @@
         function renderUI() {
             document.getElementById('plugin-switch').checked = currentConfig.enabled !== false;
             document.getElementById('cooldown-input').value = currentConfig.cooldown || 40;
+            document.getElementById('switch-delay-input').value = currentConfig.switch_delay || 7.5;
             document.getElementById('speech-input').value = currentConfig.transition_speech || '';
 
             const tbody = document.getElementById('rules-tbody');
@@ -442,6 +450,7 @@
         async function saveSettings() {
             currentConfig.enabled = document.getElementById('plugin-switch').checked;
             currentConfig.cooldown = parseInt(document.getElementById('cooldown-input').value, 10) || 40;
+            currentConfig.switch_delay = parseFloat(document.getElementById('switch-delay-input').value) || 7.5;
             currentConfig.transition_speech = document.getElementById('speech-input').value.trim();
 
             if (bridge) {

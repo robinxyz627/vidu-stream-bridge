@@ -1,39 +1,24 @@
 {
   "enabled": true,
   "cooldown": 40,
+  "switch_delay": 7.5,
   "transition_speech": "收到【{nickname}】的心意，我先去换套新衣服，马上回来哦~",
   "rules": [
     {
-      "id": "rule_carnival",
+      "id": "rule_1793804453233",
       "type": "gift_name",
-      "trigger": "嘉年华",
-      "targetAvatarId": "3514101839684654",
-      "targetAvatarName": "小雅",
-      "speech": "感谢大佬送出的【嘉年华】！正在为您无缝变身小雅！"
+      "trigger": "小心心",
+      "targetAvatarId": "3538368383246553",
+      "targetAvatarName": "鲸洗洗",
+      "speech": "收到【{nickname}】的心意，我要去泡个舒服的澡啦，马上回来哦~"
     },
     {
-      "id": "rule_diamonds",
-      "type": "gift_diamonds",
-      "trigger": "100",
+      "id": "rule_1793804595841",
+      "type": "gift_name",
+      "trigger": "大啤酒",
       "targetAvatarId": "3531288731656683",
-      "targetAvatarName": "大肥鱼",
-      "speech": "收到大额打赏！大肥鱼这就换装变回来！"
-    },
-    {
-      "id": "rule_cmd_xiaoya",
-      "type": "chat_command",
-      "trigger": "#换装 小雅",
-      "targetAvatarId": "3514101839684654",
-      "targetAvatarName": "小雅",
-      "speech": "收到换装口令，小雅马上就来~"
-    },
-    {
-      "id": "rule_cmd_dafeiyu",
-      "type": "chat_command",
-      "trigger": "#换装 大肥鱼",
-      "targetAvatarId": "3531288731656683",
-      "targetAvatarName": "大肥鱼",
-      "speech": "收到换装口令，切回大肥鱼咯~"
+      "targetAvatarName": "鲸睡睡",
+      "speech": "收到【{nickname}】的小礼物啦，我要上床准备睡觉啦"
     }
   ]
 }

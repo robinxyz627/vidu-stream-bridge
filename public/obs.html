@@ -70,6 +70,83 @@
             display: none !important;
             opacity: 0 !important;
         }
+
+        /* 应急安全审核大方块马赛克遮罩 */
+        .safety-mask {
+            position: absolute;
+            inset: 0;
+            z-index: 999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            background: #060913;
+        }
+        /* 经典几何大方块马赛克网格效果 */
+        .safety-mask-pattern {
+            position: absolute;
+            inset: 0;
+            background-image: 
+                linear-gradient(45deg, #10192e 25%, transparent 25%), 
+                linear-gradient(-45deg, #10192e 25%, transparent 25%), 
+                linear-gradient(45deg, transparent 75%, #10192e 75%), 
+                linear-gradient(-45deg, transparent 75%, #10192e 75%);
+            background-size: 38px 38px;
+            background-position: 0 0, 0 19px, 19px -19px, -19px 0px;
+            filter: blur(1.5px);
+            opacity: 0.95;
+        }
+        .safety-mask-card {
+            position: relative;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 14px;
+            background: rgba(10, 15, 28, 0.92);
+            border: 2px solid rgba(255, 187, 0, 0.45);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.9), 0 0 40px rgba(255, 187, 0, 0.25);
+            padding: 36px 54px;
+            border-radius: 18px;
+            backdrop-filter: blur(14px);
+            animation: pulseCard 2.5s infinite ease-in-out;
+            text-align: center;
+        }
+        @keyframes pulseCard {
+            0%, 100% { border-color: rgba(255, 187, 0, 0.45); box-shadow: 0 0 30px rgba(255, 187, 0, 0.2); }
+            50% { border-color: rgba(255, 187, 0, 0.85); box-shadow: 0 0 55px rgba(255, 187, 0, 0.45); }
+        }
+        .safety-warn-icon {
+            filter: drop-shadow(0 0 15px rgba(255, 187, 0, 0.6));
+            animation: bounceWarn 1.8s infinite ease-in-out;
+        }
+        @keyframes bounceWarn {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-4px); }
+        }
+        .safety-title {
+            color: #ffffff;
+            font-size: 32px;
+            font-weight: 900;
+            letter-spacing: 6px;
+            text-shadow: 0 4px 15px rgba(0, 0, 0, 0.8);
+            font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Segoe UI", sans-serif;
+        }
+        .safety-subtitle {
+            color: #ffbb00;
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            font-family: Arial, sans-serif;
+        }
+        .safety-tip {
+            color: #94a3b8;
+            font-size: 13px;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 6px 16px;
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
     </style>
 </head>
 <body>
@@ -78,6 +155,22 @@
         <div id="status-overlay">
             <div class="spinner"></div>
             <span id="status-text">正在连接局域网 Vidu 数字人推流通道...</span>
+        </div>
+        <!-- 应急安全审核大方块马赛克遮罩 -->
+        <div id="safety-mask-overlay" class="safety-mask hidden">
+            <div class="safety-mask-pattern"></div>
+            <div class="safety-mask-card">
+                <div class="safety-warn-icon">
+                    <svg width="88" height="88" viewBox="0 0 24 24" fill="none" stroke="#ffbb00" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                        <line x1="12" y1="9" x2="12" y2="13"></line>
+                        <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                    </svg>
+                </div>
+                <div class="safety-title">安全审核中</div>
+                <div class="safety-subtitle">STREAM SAFETY AUDIT IN PROGRESS</div>
+                <div class="safety-tip">⚠️ 触发平台应急安全审核机制 · 画面及声音已屏蔽</div>
+            </div>
         </div>
     </div>
 
@@ -94,6 +187,23 @@
         let myClientId = null;
         let iceQueue = [];
         let inboundStream = null;
+        let isMasked = false;
+
+        function applySafetyMask(enabled) {
+            isMasked = !!enabled;
+            const maskEl = document.getElementById('safety-mask-overlay');
+            if (maskEl) {
+                if (isMasked) {
+                    maskEl.classList.remove('hidden');
+                    videoEl.muted = true;
+                    console.log('[OBS] ⚠️ 应急安全审核遮罩已激活，画面与声音已屏蔽');
+                } else {
+                    maskEl.classList.add('hidden');
+                    videoEl.muted = false;
+                    console.log('[OBS] 🟢 安全审核已解除，恢复正常推流');
+                }
+            }
+        }
 
         function markStreamLive() {
             if (videoEl.videoWidth > 0) {
@@ -133,6 +243,8 @@
                     if (data.type === 'init') {
                         myClientId = data.clientId;
                         console.log(`[OBS] 已分配唯一客户端识别码: [${myClientId}]`);
+                    } else if (data.type === 'safety-mask') {
+                        applySafetyMask(data.enabled);
                     } else if (data.type === 'signal-offer') {
                         if (data.clientId && myClientId && data.clientId !== myClientId) {
                             return; // 忽略发往其他客户端的 offer
@@ -196,8 +308,8 @@
                     videoEl.srcObject = inboundStream;
                 }
 
-                // 确保音频正常开启（不静音，供 OBS 采集声音）
-                videoEl.muted = false;
+                // 确保音频正常开启（若处于安全审核中则保持静音）
+                videoEl.muted = !!isMasked;
                 videoEl.volume = 1.0;
                 videoEl.play().catch(e => {
                     console.warn('[OBS] 自动播放被拦截，先静音起播随后恢复音量:', e);
