@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>Vidu 数字人 OBS 纯净源 (全比例自适应)</title>
     <style>
         * {
@@ -69,6 +72,8 @@
         .hidden {
             display: none !important;
             opacity: 0 !important;
+            visibility: hidden !important;
+            pointer-events: none !important;
         }
 
         /* 应急安全审核大方块马赛克遮罩 */
@@ -81,6 +86,12 @@
             justify-content: center;
             overflow: hidden;
             background: #060913;
+        }
+        .safety-mask.hidden {
+            display: none !important;
+            opacity: 0 !important;
+            visibility: hidden !important;
+            pointer-events: none !important;
         }
         /* 经典几何大方块马赛克网格效果 */
         .safety-mask-pattern {
@@ -157,7 +168,7 @@
             <span id="status-text">正在连接局域网 Vidu 数字人推流通道...</span>
         </div>
         <!-- 应急安全审核大方块马赛克遮罩 -->
-        <div id="safety-mask-overlay" class="safety-mask hidden">
+        <div id="safety-mask-overlay" class="safety-mask hidden" style="display: none;">
             <div class="safety-mask-pattern"></div>
             <div class="safety-mask-card">
                 <div class="safety-warn-icon">
@@ -195,15 +206,26 @@
             if (maskEl) {
                 if (isMasked) {
                     maskEl.classList.remove('hidden');
+                    maskEl.style.display = 'flex';
                     videoEl.muted = true;
+                    videoEl.style.opacity = '0';
                     console.log('[OBS] ⚠️ 应急安全审核遮罩已激活，画面与声音已屏蔽');
                 } else {
                     maskEl.classList.add('hidden');
+                    maskEl.style.display = 'none';
                     videoEl.muted = false;
+                    videoEl.style.opacity = '1';
                     console.log('[OBS] 🟢 安全审核已解除，恢复正常推流');
                 }
             }
         }
+
+        // 页面初始化时主动查询当前安全审核状态
+        fetch('/api/safety-mask').then(r => r.json()).then(data => {
+            if (data && data.active) {
+                applySafetyMask(true);
+            }
+        }).catch(() => {});
 
         function markStreamLive() {
             if (videoEl.videoWidth > 0) {
@@ -243,6 +265,9 @@
                     if (data.type === 'init') {
                         myClientId = data.clientId;
                         console.log(`[OBS] 已分配唯一客户端识别码: [${myClientId}]`);
+                        if (data.isSafetyMaskActive) {
+                            applySafetyMask(true);
+                        }
                     } else if (data.type === 'safety-mask') {
                         applySafetyMask(data.enabled);
                     } else if (data.type === 'signal-offer') {

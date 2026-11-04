@@ -347,6 +347,12 @@
             overflow: hidden;
             background: #060913;
         }
+        .safety-mask.hidden {
+            display: none !important;
+            opacity: 0 !important;
+            visibility: hidden !important;
+            pointer-events: none !important;
+        }
         .safety-mask-pattern {
             position: absolute;
             inset: 0;
@@ -599,9 +605,9 @@
                     <span id="placeholder-text" style="font-size: 13px; line-height: 1.6;">已加载本地凭证<br>点击上方「开始纯净开播」即可上线</span>
                 </div>
                 <!-- 应急安全审核大方块马赛克遮罩 (工作台监视器同步呈现) -->
-                <div id="stage-safety-overlay" class="safety-mask hidden">
+                <div id="stage-safety-overlay" class="safety-mask hidden" style="display: none;" onclick="toggleSafetyMask()" title="点击解除安全审核遮罩">
                     <div class="safety-mask-pattern"></div>
-                    <div class="safety-mask-card">
+                    <div class="safety-mask-card" style="cursor: pointer; user-select: none;">
                         <div class="safety-warn-icon">
                             <svg width="68" height="68" viewBox="0 0 24 24" fill="none" stroke="#ffbb00" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                                 <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
@@ -611,7 +617,7 @@
                         </div>
                         <div class="safety-title" style="font-size: 26px;">安全审核中</div>
                         <div class="safety-subtitle" style="font-size: 11px;">STREAM SAFETY AUDIT IN PROGRESS</div>
-                        <div class="safety-tip" style="font-size: 11px;">⚠️ 触发平台应急安全审核机制 · 画面及声音已屏蔽</div>
+                        <div class="safety-tip" style="font-size: 11px;">⚠️ 触发平台应急安全审核机制 · 画面及声音已屏蔽 (点击可解除)</div>
                     </div>
                 </div>
             </div>
@@ -2411,8 +2417,11 @@
             isSafetyMaskActive = !isSafetyMaskActive;
             updateSafetyMaskUI();
             try {
-                await ipcRenderer.invoke('set-safety-mask', isSafetyMaskActive);
-                appendLog(isSafetyMaskActive ? '⚠️ [应急安全审核] 画面与音频已打上大方块马赛克并在 OBS 端静音屏蔽！' : '✅ [安全审核解除] 已恢复正常推流');
+                const res = await ipcRenderer.invoke('set-safety-mask', isSafetyMaskActive);
+                const obsCount = (res && res.obsCount !== undefined) ? res.obsCount : 0;
+                appendLog(isSafetyMaskActive 
+                    ? `⚠️ [应急安全审核] 已激活！监视器与 OBS (${obsCount} 个在线源) 均已打上大方块马赛克并静音！` 
+                    : `✅ [安全审核解除] 已恢复正常推流 (已同步至 ${obsCount} 个 OBS 在线源)`);
             } catch(e) {
                 console.error('设置安全审核失败:', e);
             }
@@ -2427,14 +2436,24 @@
                 if (btn) btn.className = 'btn btn-safety active';
                 if (icon) icon.innerText = '⚠️';
                 if (text) text.innerText = '审核中 (点击解除)';
-                if (overlay) overlay.classList.remove('hidden');
+                if (overlay) {
+                    overlay.classList.remove('hidden');
+                    overlay.style.display = 'flex';
+                }
             } else {
                 if (btn) btn.className = 'btn btn-safety';
                 if (icon) icon.innerText = '🛡️';
                 if (text) text.innerText = '安全审核';
-                if (overlay) overlay.classList.add('hidden');
+                if (overlay) {
+                    overlay.classList.add('hidden');
+                    overlay.style.display = 'none';
+                }
             }
         }
+
+        // 初始化时立即执行一次，确保开播前遮罩绝对处于隐藏状态
+        isSafetyMaskActive = false;
+        updateSafetyMaskUI();
 
         window.addEventListener('keydown', (e) => {
             if (e.key === 'F9') {
@@ -2443,7 +2462,7 @@
             }
         });
 
-        // 启动时同步安全审核状态
+        // 启动时向主进程同步当前安全审核状态
         ipcRenderer.invoke('get-safety-mask').then(res => {
             if (res && res.active) {
                 isSafetyMaskActive = true;

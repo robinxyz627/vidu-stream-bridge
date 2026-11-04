@@ -26,6 +26,15 @@ const PORT = 8888;
 
 serverApp.use(cors());
 serverApp.use(express.json());
+
+// 禁用所有 HTTP 静态资源缓存，确保 OBS 浏览器源随时获取最新页面与脚本
+serverApp.use((req, res, next) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    next();
+});
+
 serverApp.use(express.static(path.join(__dirname, 'public')));
 serverApp.use('/plugins', express.static(path.join(__dirname, 'plugins')));
 
@@ -159,16 +168,23 @@ let isSafetyMaskActive = false; // 平台应急安全审核大方块马赛克遮
 ipcMain.handle('set-safety-mask', async (event, enabled) => {
     isSafetyMaskActive = !!enabled;
     console.log(`[Safety Mask] 应急安全审核遮罩状态变更: ${isSafetyMaskActive ? '🔴 激活安全审核遮罩' : '🟢 正常推流'}`);
+    let sentCount = 0;
     for (const [cId, target] of obsClients.entries()) {
         if (target.ws && target.ws.readyState === WebSocket.OPEN) {
             target.ws.send(JSON.stringify({ type: 'safety-mask', enabled: isSafetyMaskActive }));
+            sentCount++;
         }
     }
-    return { ok: true, active: isSafetyMaskActive };
+    return { ok: true, active: isSafetyMaskActive, obsCount: sentCount };
 });
 
 ipcMain.handle('get-safety-mask', async () => {
     return { ok: true, active: isSafetyMaskActive };
+});
+
+// 提供 HTTP API 供 OBS 浏览器源在页面载入时即时获取遮罩状态
+serverApp.get('/api/safety-mask', (req, res) => {
+    res.json({ active: isSafetyMaskActive });
 });
 
 server.on('error', (err) => {
@@ -252,7 +268,8 @@ try {
             ws.send(JSON.stringify({
                 type: 'init',
                 clientId: clientId,
-                hostIP: localIP
+                hostIP: localIP,
+                isSafetyMaskActive: isSafetyMaskActive
             }));
 
             // 如果当前处于应急安全审核中，立即向新接入的 OBS 施加遮罩与静音
@@ -780,10 +797,18 @@ function createWindow() {
             console.log('[AUTO_TEST] 开始自动化验证流程...');
             await new Promise(r => setTimeout(r, 2000));
 
-            // 1. 验证凭证自动加载
+            // 1. 验证凭证自动加载与开播前安全遮罩处于隐藏状态
+            const isMaskInitiallyHidden = await mainWindow.webContents.executeJavaScript(`
+                (function() {
+                    const overlay = document.getElementById('stage-safety-overlay');
+                    return window.getComputedStyle(overlay).display === 'none';
+                })()
+            `);
+            console.log('[AUTO_TEST] 开播前遮罩状态检查 (应为 true/隐藏):', isMaskInitiallyHidden);
+
             let img = await mainWindow.webContents.capturePage();
             fs.writeFileSync(path.join(ARTIFACT_DIR, 'verified-step1-auto-auth.png'), img.toPNG());
-            console.log('[AUTO_TEST] 截图 1: 凭证自动加载与角色初始化完成');
+            console.log('[AUTO_TEST] 截图 1: 凭证自动加载与角色初始化完成 (无遮罩阻挡)');
 
             // 2. 点击开播
             console.log('[AUTO_TEST] 点击开始纯净开播...');

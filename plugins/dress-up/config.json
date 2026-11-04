@@ -1,7 +1,7 @@
 {
   "enabled": true,
   "cooldown": 40,
-  "switch_delay": 7.5,
+  "switch_delay": 15,
   "transition_speech": "收到【{nickname}】的心意，我先去换套新衣服，马上回来哦~",
   "rules": [
     {
