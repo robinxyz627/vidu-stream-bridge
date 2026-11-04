@@ -1789,6 +1789,197 @@
                         return false;
                     }
 
+                    // =================== 核心黑科技：WebRTC 帧级安全审核马赛克发生器 ===================
+                    let maskCanvas = null;
+                    let maskCtx = null;
+                    let maskStream = null;
+                    let maskTrack = null;
+                    let maskAnimId = null;
+                    window.__safetyMaskEnabled = false;
+
+                    function setupSafetyMaskTrack(w = 1080, h = 1920) {
+                        const targetW = Math.max(320, Math.round(w));
+                        const targetH = Math.max(320, Math.round(h));
+                        if (maskCanvas && maskCanvas.width === targetW && maskCanvas.height === targetH && maskTrack && maskTrack.readyState === 'live') {
+                            return maskTrack;
+                        }
+                        if (maskAnimId) {
+                            cancelAnimationFrame(maskAnimId);
+                            maskAnimId = null;
+                        }
+                        maskCanvas = document.createElement('canvas');
+                        maskCanvas.width = targetW;
+                        maskCanvas.height = targetH;
+                        maskCtx = maskCanvas.getContext('2d');
+                        maskStream = maskCanvas.captureStream(30); // 捕获原生 30fps 实时视频帧流
+                        maskTrack = maskStream.getVideoTracks()[0];
+                        return maskTrack;
+                    }
+
+                    function drawRoundRectPath(ctx, x, y, width, height, radius) {
+                        if (typeof ctx.roundRect === 'function') {
+                            ctx.roundRect(x, y, width, height, radius);
+                        } else {
+                            ctx.moveTo(x + radius, y);
+                            ctx.lineTo(x + width - radius, y);
+                            ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+                            ctx.lineTo(x + width, y + height - radius);
+                            ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+                            ctx.lineTo(x + radius, y + height);
+                            ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+                            ctx.lineTo(x, y + radius);
+                            ctx.quadraticCurveTo(x, y, x + radius, y);
+                        }
+                    }
+
+                    function renderMaskFrame() {
+                        if (!maskCtx || !maskCanvas) return;
+                        const w = maskCanvas.width;
+                        const h = maskCanvas.height;
+                        const t = Date.now();
+
+                        // 1. 深色极夜背景
+                        maskCtx.fillStyle = '#060913';
+                        maskCtx.fillRect(0, 0, w, h);
+
+                        // 2. 逐格渲染经典大方块马赛克像素 (38px 几何网格)
+                        const tileSize = Math.max(32, Math.round(w / 26));
+                        for (let y = 0; y < h; y += tileSize) {
+                            for (let x = 0; x < w; x += tileSize) {
+                                const isOdd = ((Math.floor(x / tileSize)) + (Math.floor(y / tileSize))) % 2 === 0;
+                                maskCtx.fillStyle = isOdd ? '#0b1428' : '#070c19';
+                                maskCtx.fillRect(x, y, tileSize, tileSize);
+                            }
+                        }
+
+                        // 3. 绘制中央安全审核警示卡片
+                        const cardW = Math.min(w * 0.86, 540);
+                        const cardH = Math.min(h * 0.44, 380);
+                        const cardX = (w - cardW) / 2;
+                        const cardY = (h - cardH) / 2;
+
+                        maskCtx.save();
+                        const pulse = (Math.sin(t / 350) + 1) / 2;
+                        maskCtx.shadowColor = 'rgba(255, 187, 0, ' + (0.35 + 0.35 * pulse) + ')';
+                        maskCtx.shadowBlur = 30 + 15 * pulse;
+
+                        maskCtx.fillStyle = 'rgba(10, 15, 28, 0.94)';
+                        maskCtx.beginPath();
+                        drawRoundRectPath(maskCtx, cardX, cardY, cardW, cardH, 20);
+                        maskCtx.fill();
+
+                        maskCtx.lineWidth = 3;
+                        maskCtx.strokeStyle = 'rgba(255, 187, 0, ' + (0.55 + 0.35 * pulse) + ')';
+                        maskCtx.stroke();
+                        maskCtx.restore();
+
+                        // 4. 绘制金色警示三角感叹号 (⚠️)
+                        maskCtx.save();
+                        const iconCenterY = cardY + cardH * 0.32;
+                        const iconCenterX = w / 2;
+                        const triSide = Math.min(cardW * 0.28, 92);
+                        const triH = triSide * 0.866;
+
+                        maskCtx.lineWidth = 6;
+                        maskCtx.strokeStyle = '#ffbb00';
+                        maskCtx.lineJoin = 'round';
+                        maskCtx.lineCap = 'round';
+                        maskCtx.beginPath();
+                        maskCtx.moveTo(iconCenterX, iconCenterY - triH * 0.6);
+                        maskCtx.lineTo(iconCenterX + triSide / 2, iconCenterY + triH * 0.4);
+                        maskCtx.lineTo(iconCenterX - triSide / 2, iconCenterY + triH * 0.4);
+                        maskCtx.closePath();
+                        maskCtx.stroke();
+
+                        // 感叹号竖线与圆点
+                        maskCtx.fillStyle = '#ffbb00';
+                        maskCtx.beginPath();
+                        drawRoundRectPath(maskCtx, iconCenterX - 3, iconCenterY - triH * 0.22, 6, triH * 0.35, 3);
+                        maskCtx.fill();
+                        maskCtx.beginPath();
+                        maskCtx.arc(iconCenterX, iconCenterY + triH * 0.24, 3.5, 0, Math.PI * 2);
+                        maskCtx.fill();
+                        maskCtx.restore();
+
+                        // 5. 绘制中英双语文字
+                        maskCtx.textAlign = 'center';
+                        maskCtx.textBaseline = 'middle';
+
+                        const titleFontSize = Math.max(26, Math.round(cardW * 0.084));
+                        maskCtx.font = '900 ' + titleFontSize + 'px -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif';
+                        maskCtx.fillStyle = '#ffffff';
+                        maskCtx.fillText('安全审核中', iconCenterX, cardY + cardH * 0.62);
+
+                        const subFontSize = Math.max(11, Math.round(cardW * 0.032));
+                        maskCtx.font = '700 ' + subFontSize + 'px Arial, sans-serif';
+                        maskCtx.fillStyle = '#ffbb00';
+                        maskCtx.fillText('STREAM SAFETY AUDIT IN PROGRESS', iconCenterX, cardY + cardH * 0.74);
+
+                        const tipFontSize = Math.max(10, Math.round(cardW * 0.026));
+                        maskCtx.font = '500 ' + tipFontSize + 'px -apple-system, BlinkMacSystemFont, "Microsoft YaHei", sans-serif';
+                        maskCtx.fillStyle = '#94a3b8';
+                        maskCtx.fillText('⚠️ 触发平台应急安全审核机制 · 画面及声音已屏蔽', iconCenterX, cardY + cardH * 0.88);
+
+                        if (window.__safetyMaskEnabled) {
+                            maskAnimId = requestAnimationFrame(renderMaskFrame);
+                        }
+                    }
+
+                    // 全局提供 WebRTC 帧级安全审核热切控制器 (直接替换 RTP 视频轨道)
+                    window.__setSafetyMask = async function(enabled) {
+                        window.__safetyMaskEnabled = !!enabled;
+                        console.log('[Bridge WebRTC] 帧级安全审核状态变更:', window.__safetyMaskEnabled ? '🔴 启用帧级马赛克' : '🟢 恢复原画');
+
+                        const info = getLiveTracks();
+                        const streamW = (info.rv && info.rv.videoWidth > 0) ? info.rv.videoWidth : 1080;
+                        const streamH = (info.rv && info.rv.videoHeight > 0) ? info.rv.videoHeight : 1920;
+                        const maskT = setupSafetyMaskTrack(streamW, streamH);
+
+                        if (window.__safetyMaskEnabled) {
+                            if (!maskAnimId) renderMaskFrame();
+                        } else {
+                            if (maskAnimId) {
+                                cancelAnimationFrame(maskAnimId);
+                                maskAnimId = null;
+                            }
+                        }
+
+                        // 核心：遍历所有已连接的 OBS 客户端，直接热替换 WebRTC 底层发送轨道！
+                        for (const [clientId, pc] of peerConnections.entries()) {
+                            if (!pc || pc.connectionState === 'closed') continue;
+                            const senders = pc.getSenders();
+                            const videoSender = senders.find(s => s.track && s.track.kind === 'video');
+                            const audioSenders = senders.filter(s => s.track && s.track.kind === 'audio');
+
+                            if (window.__safetyMaskEnabled) {
+                                if (videoSender) {
+                                    try {
+                                        await videoSender.replaceTrack(maskT);
+                                        console.log('[Bridge -> ' + clientId + '] ✅ WebRTC 视频轨道已热替换为 30fps 马赛克帧！OBS 收到真实遮罩画面');
+                                    } catch(e) {
+                                        console.error('[Bridge] replaceTrack 失败:', e);
+                                    }
+                                }
+                                audioSenders.forEach(as => {
+                                    if (as.track) as.track.enabled = false;
+                                });
+                            } else {
+                                const origVideo = info.tracks.find(t => t.kind === 'video');
+                                if (videoSender && origVideo) {
+                                    try {
+                                        await videoSender.replaceTrack(origVideo);
+                                        console.log('[Bridge -> ' + clientId + '] ✅ WebRTC 视频轨道已恢复为原始数字人高画质视频帧！');
+                                    } catch(e) {
+                                        console.error('[Bridge] 恢复原始视频轨道失败:', e);
+                                    }
+                                }
+                                audioSenders.forEach(as => {
+                                    if (as.track) as.track.enabled = true;
+                                });
+                            }
+                        }
+                    };
+
                     // 为特定的 OBS 客户端创建专属 WebRTC PeerConnection
                     async function createOfferForClient(clientId, clientIP) {
                         console.log('[Bridge] 正在为 OBS 客户端 [' + clientId + '] 准备推流...');
@@ -1815,10 +2006,27 @@
 
                         const info = getLiveTracks();
                         const outStream = new MediaStream();
-                        info.tracks.forEach(track => {
+                        const streamW = (info.rv && info.rv.videoWidth > 0) ? info.rv.videoWidth : 1080;
+                        const streamH = (info.rv && info.rv.videoHeight > 0) ? info.rv.videoHeight : 1920;
+                        const maskT = setupSafetyMaskTrack(streamW, streamH);
+
+                        // 决定发送给 OBS 的初始视频轨道（若正处于安全审核中，直接送入 30fps 马赛克帧流）
+                        const rawVideo = info.tracks.find(t => t.kind === 'video');
+                        const videoToSend = window.__safetyMaskEnabled ? maskT : rawVideo;
+                        if (videoToSend) {
+                            outStream.addTrack(videoToSend);
+                            pc.addTrack(videoToSend, outStream);
+                            console.log('[Bridge -> ' + clientId + '] 送入视频轨道:', window.__safetyMaskEnabled ? '🛡️ 30fps 马赛克安全审核帧' : '🎥 原始数字人画面');
+                        }
+
+                        // 送入音频轨道（若处于安全审核中则静音）
+                        info.tracks.filter(t => t.kind === 'audio').forEach(track => {
+                            if (window.__safetyMaskEnabled) {
+                                track.enabled = false;
+                            }
                             outStream.addTrack(track);
                             pc.addTrack(track, outStream);
-                            console.log('[Bridge -> ' + clientId + '] 送入轨道:', track.kind, track.label);
+                            console.log('[Bridge -> ' + clientId + '] 送入音频轨道 (静音: ' + window.__safetyMaskEnabled + ')');
                         });
 
                         pc.onicecandidate = (event) => {
@@ -1915,6 +2123,14 @@
                     connectWS();
                 })();
             `);
+
+            if (isSafetyMaskActive) {
+                setTimeout(() => {
+                    try {
+                        wv.executeJavaScript(`if (typeof window.__setSafetyMask === 'function') window.__setSafetyMask(true);`);
+                    } catch(e) {}
+                }, 600);
+            }
         }
 
         // 弹幕输入与动作指令
@@ -2416,11 +2632,28 @@
         async function toggleSafetyMask() {
             isSafetyMaskActive = !isSafetyMaskActive;
             updateSafetyMaskUI();
+
+            // 1. 核心突破：同步通知 A/B 双舞台中的 WebRTC 推流器在媒体源直接执行 replaceTrack
+            // 将发往 OBS 的每一帧视频数据直接热替换为 30fps 画布马赛克，音频置为静音
+            ['stage-webview-a', 'stage-webview-b'].forEach(id => {
+                const wv = document.getElementById(id);
+                if (wv) {
+                    try {
+                        wv.executeJavaScript(`
+                            if (typeof window.__setSafetyMask === 'function') {
+                                window.__setSafetyMask(${isSafetyMaskActive});
+                            }
+                        `);
+                    } catch(e) {}
+                }
+            });
+
+            // 2. 向主进程更新状态并广播
             try {
                 const res = await ipcRenderer.invoke('set-safety-mask', isSafetyMaskActive);
                 const obsCount = (res && res.obsCount !== undefined) ? res.obsCount : 0;
                 appendLog(isSafetyMaskActive 
-                    ? `⚠️ [应急安全审核] 已激活！监视器与 OBS (${obsCount} 个在线源) 均已打上大方块马赛克并静音！` 
+                    ? `⚠️ [应急安全审核] 已激活！WebRTC 视频流每一帧已替换为大方块马赛克 (${obsCount} 个 OBS 源实时生效)！` 
                     : `✅ [安全审核解除] 已恢复正常推流 (已同步至 ${obsCount} 个 OBS 在线源)`);
             } catch(e) {
                 console.error('设置安全审核失败:', e);
