@@ -1,6 +1,7 @@
 {
   "enabled": true,
   "monitor_local": false,
+  "monitor_device_id": "default",
   "active_preset": "bathroom",
   "bindings": [
     {
@@ -45,27 +46,27 @@
       "roomSize": 0.94,
       "dampening": 0.35,
       "wet": 0.65,
-      "dry": 0.60,
+      "dry": 0.6,
       "lowCut": 100,
       "highCut": 8000,
       "desc": "高挑空旷大厅，长尾音衰减，气势开阔宏大"
     },
     "radio": {
       "name": "📻 复古电台/对讲机",
-      "roomSize": 0.10,
-      "dampening": 0.90,
+      "roomSize": 0.1,
+      "dampening": 0.9,
       "wet": 0.05,
-      "dry": 1.0,
+      "dry": 1,
       "lowCut": 420,
       "highCut": 3400,
       "desc": "截断高低频模拟老式磁带广播与对讲机质感"
     },
     "direct": {
       "name": "🎙️ 纯净原声直出 (直播录音棚)",
-      "roomSize": 0.0,
-      "dampening": 1.0,
-      "wet": 0.0,
-      "dry": 1.0,
+      "roomSize": 0,
+      "dampening": 1,
+      "wet": 0,
+      "dry": 1,
       "lowCut": 40,
       "highCut": 16000,
       "desc": "零混响原声直通，最真实的人声清晰度"

@@ -45,7 +45,8 @@ module.exports = function createAudioSceneFilterPlugin(bridge) {
             dry: preset.dry,
             lowCut: preset.lowCut,
             highCut: preset.highCut,
-            monitor_local: !!config.monitor_local
+            monitor_local: !!config.monitor_local,
+            monitor_device_id: config.monitor_device_id || 'default'
         });
 
         if (reason) {
@@ -106,6 +107,10 @@ module.exports = function createAudioSceneFilterPlugin(bridge) {
         applyPreset: (key) => applyActivePreset(key, '手动选择预设'),
         setMonitor: (val) => {
             config.monitor_local = !!val;
+            applyActivePreset(config.active_preset);
+        },
+        setMonitorDevice: (deviceId) => {
+            config.monitor_device_id = deviceId || 'default';
             applyActivePreset(config.active_preset);
         }
     };

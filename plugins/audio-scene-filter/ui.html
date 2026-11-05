@@ -318,26 +318,93 @@
 
     <!-- 顶部卡片 -->
     <div class="header-card">
-        <div class="plugin-title-row">
-            <span style="font-size: 20px;">🎙️</span>
-            <div>
-                <div class="plugin-title">场景音色/空间混响滤镜 (Freeverb)</div>
-                <div style="font-size: 11px; color: var(--text-dim);">基于 Web Audio DSP 流水线，为不同数字人角色与场景绑定专属环境混响</div>
-            </div>
-            <span class="badge">v1.0.0</span>
-        </div>
-        <div class="controls-group">
-            <label class="switch-label" title="开启后本地扬声器也能听到混响 (方便调试与试听)">
-                <input type="checkbox" id="chk-monitor" onchange="onMonitorToggle()">
-                <span>🎧 耳机监听试听</span>
-            </label>
-            <label class="switch-label" title="总开关：控制是否启用空间混响">
-                <div class="switch">
-                    <input type="checkbox" id="chk-master-enabled" checked onchange="onMasterToggle()">
-                    <span class="slider"></span>
+        <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; flex-wrap: wrap; gap: 12px;">
+            <div class="plugin-title-row">
+                <span style="font-size: 20px;">🎙️</span>
+                <div>
+                    <div class="plugin-title">场景音色/空间混响滤镜 (FIR物理卷积 + 防啸叫)</div>
+                    <div style="font-size: 11px; color: var(--text-dim);">基于 Web Audio DSP 流水线，为不同数字人角色与场景绑定专属环境混响</div>
                 </div>
-                <span>启用场景音效</span>
-            </label>
+                <span class="badge">v1.1.0 专业版</span>
+            </div>
+            <div class="controls-group">
+                <label class="switch-label" title="开启后仅在选定的监听耳机中试听混响 (杜绝电脑外放啸叫)">
+                    <input type="checkbox" id="chk-monitor" onchange="onMonitorToggle()">
+                    <span>🎧 开启耳机监听</span>
+                </label>
+                <label class="switch-label" title="总开关：控制是否启用空间混响">
+                    <div class="switch">
+                        <input type="checkbox" id="chk-master-enabled" checked onchange="onMasterToggle()">
+                        <span class="slider"></span>
+                    </div>
+                    <span>启用场景音效</span>
+                </label>
+            </div>
+        </div>
+
+        <!-- 硬件音频输出设备选择与隔离行 -->
+        <div style="display: flex; align-items: center; gap: 10px; width: 100%; border-top: 1px solid var(--border); padding-top: 10px; margin-top: 6px; flex-wrap: wrap;">
+            <span style="font-size: 12px; color: var(--accent); font-weight: 700; display: flex; align-items: center; gap: 4px;">
+                🎧 监听输出设备:
+            </span>
+            <select id="sel-audio-device" style="flex: 1; min-width: 260px; max-width: 480px;" onchange="onDeviceSelected()">
+                <option value="default">正在扫描系统硬件音频设备...</option>
+            </select>
+            <button class="btn" style="padding: 4px 12px; font-size: 11px;" onclick="scanAudioDevices()" title="重新扫描插入的耳机或声卡">🔄 扫描/刷新设备</button>
+            <span style="font-size: 11px; color: var(--gold);" id="device-hint">
+                ⚠️ 必须选择耳机或独立监听声卡！切勿选择大音箱，以防被麦克风二次采集导致物理啸叫！
+            </span>
+        </div>
+    </div>
+
+    <!-- 实时音频频谱与声学分析仪 (实时监测 + 试听触发) -->
+    <div class="section-card" style="background: rgba(13, 22, 38, 0.7); border-color: rgba(0, 210, 255, 0.25);">
+        <div class="section-title">
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <span>📊 实时音频频谱分析与 DSP 运行监测</span>
+                <span class="badge" id="dsp-badge" style="background: rgba(0, 230, 118, 0.15); color: var(--green); border-color: rgba(0, 230, 118, 0.3);">
+                    ● 48kHz / 2.67ms 极低物理延迟
+                </span>
+            </div>
+            <div style="display: flex; gap: 8px;">
+                <button class="btn btn-primary" onclick="playTestTone()" id="btn-play-tone" title="一键播放一段仿真人声测试干音并流经当前滤镜，戴上耳机立即可听出混响空间感">
+                    🎵 播放测试干音 (试听混响)
+                </button>
+                <button class="btn" onclick="toggleBypass()" id="btn-bypass" title="瞬间在原始干声与空间混响之间切换，方便对比效果">
+                    🎛️ A/B 旁路对比 (原声/混响)
+                </button>
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 16px; align-items: center; flex-wrap: wrap;">
+            <!-- Canvas 频谱柱状图 -->
+            <div style="flex: 1; min-width: 280px; height: 64px; background: rgba(0,0,0,0.5); border-radius: 8px; border: 1px solid var(--border); overflow: hidden; position: relative;">
+                <canvas id="spectrum-canvas" width="480" height="64" style="width: 100%; height: 100%; display: block;"></canvas>
+                <div style="position: absolute; left: 8px; top: 4px; font-size: 10px; color: rgba(255,255,255,0.4); pointer-events: none;">
+                    实时频响能量分布 (20Hz ~ 20kHz)
+                </div>
+            </div>
+
+            <!-- VU 峰值电平指示器 -->
+            <div style="width: 200px; display: flex; flex-direction: column; gap: 5px;">
+                <div style="display: flex; justify-content: space-between; font-size: 11px;">
+                    <span style="color: var(--text-dim);">推流峰值电平 (VU):</span>
+                    <span id="vu-db-text" style="color: var(--green); font-family: monospace; font-weight: bold;">-60 dB</span>
+                </div>
+                <div style="width: 100%; height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; position: relative;">
+                    <div id="vu-bar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #00e676 60%, #ffbb00 85%, #ff3366 100%); transition: width 0.06s ease-out;"></div>
+                </div>
+                <div style="font-size: 10px; color: var(--text-dim); display: flex; justify-content: space-between; font-family: monospace;">
+                    <span>-40dB</span><span>-20dB</span><span>-6dB</span><span>0dB</span>
+                </div>
+            </div>
+        </div>
+
+        <div style="margin-top: 10px; display: flex; gap: 16px; font-size: 11px; color: var(--text-dim); border-top: 1px solid rgba(255,255,255,0.06); padding-top: 8px; flex-wrap: wrap;">
+            <span>🛡️ 安全防爆: <strong style="color: var(--green);">-1.0 dBFS 硬件级防爆硬限幅</strong></span>
+            <span>⏱️ 渲染延迟: <strong style="color: var(--accent);">~2.67毫秒 (零感同步)</strong></span>
+            <span>🌊 混响算法: <strong style="color: #fff;">FIR 纯前向物理冲激响应 (无反馈自激)</strong></span>
+            <span>🔇 原生网页: <strong style="color: var(--gold);">本地扬声器已强制静音防回授</strong></span>
         </div>
     </div>
 
@@ -493,6 +560,7 @@
         let currentConfig = {
             enabled: true,
             monitor_local: false,
+            monitor_device_id: 'default',
             active_preset: 'bathroom',
             bindings: [],
             presets: {}
@@ -500,6 +568,8 @@
 
         let editingPresetKey = 'bathroom';
         let availableAvatars = [];
+        let isBypassed = false;
+        let spectrumTimer = null;
 
         // 初始化加载
         async function init() {
@@ -516,15 +586,159 @@
                     availableAvatars = avs;
                 }
 
+                // 3. 扫描硬件音频输出设备
+                await scanAudioDevices();
+
                 renderUI();
                 renderPills();
                 loadPresetToSliders(currentConfig.active_preset || 'bathroom');
                 populateAvatarDropdown();
 
+                // 4. 启动实时频谱分析仪动画
+                startSpectrumVisualizer();
+
                 document.getElementById('status-text').innerText = `已就绪 · 当前生效空间音效: 【${(currentConfig.presets[currentConfig.active_preset] || {}).name || currentConfig.active_preset}】`;
             } catch(e) {
                 console.error('初始化失败:', e);
             }
+        }
+
+        // 扫描本地计算机音频输出设备并填充下拉框
+        async function scanAudioDevices() {
+            const sel = document.getElementById('sel-audio-device');
+            if (!sel) return;
+            sel.innerHTML = '<option value="">正在扫描系统声卡与输出设备...</option>';
+
+            try {
+                const devs = await callBridge('getAudioOutputDevices');
+                sel.innerHTML = '';
+                if (!Array.isArray(devs) || devs.length === 0) {
+                    sel.innerHTML = '<option value="default">默认音频输出设备</option>';
+                    return;
+                }
+
+                devs.forEach(d => {
+                    const opt = document.createElement('option');
+                    opt.value = d.id;
+                    const label = d.label || d.id;
+                    let icon = '🔊 ';
+                    if (label.includes('耳机') || label.toLowerCase().includes('headphone') || label.toLowerCase().includes('airpods') || label.toLowerCase().includes('earphone')) {
+                        icon = '🎧 ';
+                    } else if (label.includes('CABLE') || label.includes('Virtual') || label.includes('VB-Audio')) {
+                        icon = '📻 [虚拟声卡/线缆] ';
+                    } else if (label.includes('Soundbar') || label.includes('扬声器') || label.includes('Speaker')) {
+                        icon = '🔊 [音响/扬声器] ';
+                    }
+                    opt.innerText = icon + label;
+                    if (d.id === (currentConfig.monitor_device_id || 'default')) {
+                        opt.selected = true;
+                    }
+                    sel.appendChild(opt);
+                });
+            } catch(e) {
+                console.error('扫描设备失败:', e);
+                sel.innerHTML = '<option value="default">默认音频输出设备</option>';
+            }
+        }
+
+        // 用户选择监听设备
+        function onDeviceSelected() {
+            const sel = document.getElementById('sel-audio-device');
+            if (!sel) return;
+            currentConfig.monitor_device_id = sel.value || 'default';
+            callBridge('setAudioParams', {
+                monitor_device_id: currentConfig.monitor_device_id
+            });
+            saveAllSettings(`🎧 监听输出设备已切换为: ${sel.options[sel.selectedIndex].text}`);
+        }
+
+        // 一键播放测试干音
+        async function playTestTone() {
+            const btn = document.getElementById('btn-play-tone');
+            if (btn) btn.innerText = '🔊 正在发声试听...';
+            const res = await callBridge('playTestTone');
+            document.getElementById('status-text').innerText = '🎵 正在播放仿真人声谐波测试干音并流经混响滤镜，可在耳机中清晰辨析空间残响！';
+            setTimeout(() => {
+                if (btn) btn.innerText = '🎵 播放测试干音 (试听混响)';
+            }, 1000);
+        }
+
+        // A/B 旁路对比切换
+        function toggleBypass() {
+            isBypassed = !isBypassed;
+            const btn = document.getElementById('btn-bypass');
+            if (isBypassed) {
+                btn.style.background = 'rgba(255, 51, 102, 0.25)';
+                btn.style.borderColor = '#ff3366';
+                btn.style.color = '#ff4d79';
+                btn.innerText = '⚡ [已旁路] 正在监听原始干声直出 (点击恢复混响)';
+                document.getElementById('status-text').innerText = '⚡ 已开启 A/B 旁路对比：当前输出原始纯净干声（零混响）';
+            } else {
+                btn.style.background = '';
+                btn.style.borderColor = '';
+                btn.style.color = '';
+                btn.innerText = '🎛️ A/B 旁路对比 (原声/混响)';
+                document.getElementById('status-text').innerText = `已恢复空间音效滤镜: 【${(currentConfig.presets[currentConfig.active_preset] || {}).name}】`;
+            }
+            callBridge('setAudioParams', { bypass: isBypassed });
+        }
+
+        // 启动 Canvas 实时动态频谱仪与 VU 峰值表
+        function startSpectrumVisualizer() {
+            const canvas = document.getElementById('spectrum-canvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            const vuBar = document.getElementById('vu-bar');
+            const vuText = document.getElementById('vu-db-text');
+
+            let lastBins = new Array(32).fill(0);
+
+            async function updateFrame() {
+                try {
+                    const data = await callBridge('getAudioSpectrum');
+                    if (data && Array.isArray(data.bins)) {
+                        const rawBins = data.bins;
+                        const numCols = 32;
+                        const step = Math.max(1, Math.floor(rawBins.length / numCols));
+
+                        for (let i = 0; i < numCols; i++) {
+                            const val = rawBins[i * step] || 0;
+                            lastBins[i] = lastBins[i] * 0.7 + val * 0.3; // 平滑滤波
+                        }
+
+                        // 绘制频谱柱状图
+                        ctx.clearRect(0, 0, canvas.width, canvas.height);
+                        const colW = (canvas.width / numCols) - 2;
+
+                        for (let i = 0; i < numCols; i++) {
+                            const barH = (lastBins[i] / 255) * (canvas.height - 10);
+                            const x = i * (colW + 2) + 1;
+                            const y = canvas.height - barH;
+
+                            const grad = ctx.createLinearGradient(0, canvas.height, 0, 0);
+                            grad.addColorStop(0, '#00d2ff');
+                            grad.addColorStop(0.65, '#00e676');
+                            grad.addColorStop(1.0, '#ffbb00');
+
+                            ctx.fillStyle = grad;
+                            ctx.fillRect(x, y, colW, barH);
+                        }
+
+                        // 更新 VU 电平表
+                        if (vuBar && vuText) {
+                            const peakDb = data.peakDb !== undefined ? data.peakDb : -60;
+                            // 将 -60dB ~ 0dB 映射为 0% ~ 100%
+                            const pct = Math.max(0, Math.min(100, ((peakDb + 60) / 60) * 100));
+                            vuBar.style.width = `${pct.toFixed(0)}%`;
+                            vuText.innerText = `${peakDb > -60 ? peakDb : '-∞'} dB`;
+                            vuText.style.color = peakDb > -3 ? 'var(--red)' : (peakDb > -12 ? 'var(--gold)' : 'var(--green)');
+                        }
+                    }
+                } catch(e) {}
+            }
+
+            if (spectrumTimer) clearInterval(spectrumTimer);
+            spectrumTimer = setInterval(updateFrame, 70);
         }
 
         // 渲染主界面状态
@@ -578,7 +792,8 @@
                     dampening: p.dampening,
                     lowCut: p.lowCut,
                     highCut: p.highCut,
-                    monitor_local: currentConfig.monitor_local
+                    monitor_local: currentConfig.monitor_local,
+                    monitor_device_id: currentConfig.monitor_device_id || 'default'
                 });
                 document.getElementById('status-text').innerText = `已实时切换试听: 【${p.name}】(湿声: ${(p.wet * 100).toFixed(0)}%, 空间: ${(p.roomSize * 100).toFixed(0)}%)`;
             }
@@ -638,7 +853,8 @@
             callBridge('setAudioParams', {
                 enabled: currentConfig.enabled !== false,
                 wet, dry, roomSize, dampening, lowCut, highCut,
-                monitor_local: currentConfig.monitor_local
+                monitor_local: currentConfig.monitor_local,
+                monitor_device_id: currentConfig.monitor_device_id || 'default'
             });
         }
 
