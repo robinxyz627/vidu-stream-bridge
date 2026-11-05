@@ -1135,10 +1135,22 @@
                     }
 
                     appendLog(`已自动同步 ${userRoles.length} 个专属自定义形象与 ${sysRoles.length} 个官方预设形象 (含小雅等)！`);
+
+                    if (roleSelect && roleSelect.options.length > 0) {
+                        const curOpt = roleSelect.options[roleSelect.selectedIndex];
+                        notifyAvatarChange(roleSelect.value, curOpt ? curOpt.text.split(' ')[0] : roleSelect.value);
+                    }
                 }
             } catch (e) {
                 console.warn('加载角色失败:', e);
             }
+        }
+
+        if (roleSelect) {
+            roleSelect.addEventListener('change', () => {
+                const curOpt = roleSelect.options[roleSelect.selectedIndex];
+                notifyAvatarChange(roleSelect.value, curOpt ? curOpt.text.split(' ')[0] : roleSelect.value);
+            });
         }
 
         ipcRenderer.on('obs-log', (event, msg) => {
@@ -1431,6 +1443,42 @@
 
         // ====================== 插件系统桥接与生命周期管理 ======================
         const configUpdateListeners = [];
+        const avatarChangeListeners = [];
+        let currentAudioDSPParams = {
+            enabled: false,
+            wet: 0.0,
+            dry: 1.0,
+            roomSize: 0.8,
+            dampening: 0.3,
+            lowCut: 80,
+            highCut: 8000,
+            monitor_local: false
+        };
+
+        function notifyAvatarChange(avatarId, avatarName) {
+            console.log(`[Plugin System] 角色变更广播 -> [${avatarName || avatarId}] (${avatarId})`);
+            avatarChangeListeners.forEach(listener => {
+                try { listener({ id: avatarId, name: avatarName }); } catch(e) {}
+            });
+        }
+
+        function applyAudioParamsToWebviews(params) {
+            currentAudioDSPParams = Object.assign({}, currentAudioDSPParams, params);
+            const jsonStr = JSON.stringify(currentAudioDSPParams);
+            ['stage-webview-a', 'stage-webview-b'].forEach(id => {
+                const wv = document.getElementById(id);
+                if (wv) {
+                    try {
+                        wv.executeJavaScript(`
+                            if (typeof window.__setViduAudioParams === 'function') {
+                                window.__setViduAudioParams(${jsonStr});
+                            }
+                        `);
+                    } catch(e) {}
+                }
+            });
+        }
+
         window.ViduPluginBridge = {
             getAvatars: async () => {
                 const res = await ipcRenderer.invoke('get-user-avatars');
@@ -1457,6 +1505,22 @@
                 if (typeof cb === 'function') {
                     danmuCallbacks.push(cb);
                 }
+            },
+            onAvatarChange: (cb) => {
+                if (typeof cb === 'function') {
+                    avatarChangeListeners.push(cb);
+                    const cur = window.ViduPluginBridge.getCurrentAvatar();
+                    if (cur && cur.id) {
+                        setTimeout(() => { try { cb(cur); } catch(e) {} }, 100);
+                    }
+                }
+            },
+            setAudioParams: (params) => {
+                applyAudioParamsToWebviews(params);
+                return { ok: true, params: currentAudioDSPParams };
+            },
+            getAudioParams: () => {
+                return Object.assign({}, currentAudioDSPParams);
             },
             loadConfig: async (pluginId) => {
                 const res = await ipcRenderer.invoke('load-plugin-config', pluginId);
@@ -1703,10 +1767,11 @@
             // 7. 动态自适应画幅
             adaptStageAspectRatio(streamMeta.w, streamMeta.h);
 
-            // 8. 同步更新角色下拉框
+            // 8. 同步更新角色下拉框并广播角色变更事件
             if (roleSelect) {
                 roleSelect.value = targetAvatarId;
             }
+            notifyAvatarChange(targetAvatarId, targetName || targetAvatarId);
 
             appendLog(`🎉 [换装成功] 已零黑屏无缝切换至新角色 [${targetName || targetAvatarId}]！OBS 直播保持流畅！`);
 
@@ -1788,6 +1853,178 @@
                         }
                         return false;
                     }
+
+                    // =================== Web Audio 空间混响与声效 DSP 管线 (Freeverb + 3段EQ) ===================
+                    let audioCtx = null;
+                    let audioSource = null;
+                    let audioDest = null;
+                    let processedAudioTrack = null;
+                    let rawAudioTrack = null;
+                    let wetGain = null;
+                    let dryGain = null;
+                    let lowCutFilter = null;
+                    let highCutFilter = null;
+                    let monitorGain = null;
+                    let combFilters = [];
+                    let allpassFilters = [];
+                    window.__activeAudioParams = null;
+
+                    // Freeverb 经典 Schroeder 滤波调谐常量 (按 44.1kHz 基准换算)
+                    const COMB_TUNINGS = [1116, 1188, 1277, 1356, 1422, 1491, 1557, 1617];
+                    const ALLPASS_TUNINGS = [556, 441, 341, 225];
+
+                    function setupAudioDSP(inputTrack) {
+                        if (!inputTrack) return null;
+                        if (rawAudioTrack === inputTrack && processedAudioTrack && processedAudioTrack.readyState === 'live') {
+                            return processedAudioTrack;
+                        }
+
+                        rawAudioTrack = inputTrack;
+                        try {
+                            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                            if (!audioCtx || audioCtx.state === 'closed') {
+                                audioCtx = new AudioContextClass();
+                            }
+                            if (audioCtx.state === 'suspended') {
+                                audioCtx.resume().catch(() => {});
+                            }
+
+                            // 1. 输入源节点
+                            const inStream = new MediaStream([rawAudioTrack]);
+                            audioSource = audioCtx.createMediaStreamSource(inStream);
+
+                            // 2. 干声路径 (Dry)
+                            dryGain = audioCtx.createGain();
+                            dryGain.gain.value = 1.0;
+                            audioSource.connect(dryGain);
+
+                            // 3. 湿声路径：8 个并行梳状滤波器 (Comb Filters)
+                            const wetSum = audioCtx.createGain();
+                            wetSum.gain.value = 1.0;
+                            combFilters = [];
+
+                            COMB_TUNINGS.forEach((tuning) => {
+                                const delayTime = tuning / 44100;
+                                const delay = audioCtx.createDelay(1.0);
+                                delay.delayTime.value = delayTime;
+
+                                const feedback = audioCtx.createGain();
+                                feedback.gain.value = 0.84; // 房间大小 roomSize 映射
+
+                                const dampFilter = audioCtx.createBiquadFilter();
+                                dampFilter.type = 'lowpass';
+                                dampFilter.frequency.value = 4000; // 阻尼吸音
+
+                                // 梳状滤波环路: input -> delay -> dampFilter -> feedback -> delay
+                                audioSource.connect(delay);
+                                delay.connect(dampFilter);
+                                dampFilter.connect(feedback);
+                                feedback.connect(delay);
+
+                                // 汇入湿声汇总
+                                dampFilter.connect(wetSum);
+
+                                combFilters.push({ delay, feedback, dampFilter });
+                            });
+
+                            // 4. 4 个串联全通滤波器 (Allpass Filters) - 增加混响弥散度
+                            let allpassChain = wetSum;
+                            allpassFilters = [];
+
+                            ALLPASS_TUNINGS.forEach((tuning) => {
+                                const apDelayTime = tuning / 44100;
+                                const ap = audioCtx.createBiquadFilter();
+                                ap.type = 'allpass';
+                                ap.frequency.value = 1 / (2 * Math.PI * apDelayTime);
+                                allpassChain.connect(ap);
+                                allpassChain = ap;
+                                allpassFilters.push(ap);
+                            });
+
+                            // 5. 湿声增益控制器
+                            wetGain = audioCtx.createGain();
+                            wetGain.gain.value = 0.0; // 默认无混响
+                            allpassChain.connect(wetGain);
+
+                            // 6. 主混合母线 (Mixer Bus)
+                            const masterBus = audioCtx.createGain();
+                            dryGain.connect(masterBus);
+                            wetGain.connect(masterBus);
+
+                            // 7. 色彩与频响滤波器 (Low-Cut 高通切低频轰鸣，High-Cut 低通模拟空间吸收)
+                            lowCutFilter = audioCtx.createBiquadFilter();
+                            lowCutFilter.type = 'highpass';
+                            lowCutFilter.frequency.value = 80;
+
+                            highCutFilter = audioCtx.createBiquadFilter();
+                            highCutFilter.type = 'lowpass';
+                            highCutFilter.frequency.value = 8000;
+
+                            masterBus.connect(lowCutFilter);
+                            lowCutFilter.connect(highCutFilter);
+
+                            // 8. 本地监视监听支路 (可选开通)
+                            monitorGain = audioCtx.createGain();
+                            monitorGain.gain.value = 0.0;
+                            highCutFilter.connect(monitorGain);
+                            monitorGain.connect(audioCtx.destination);
+
+                            // 9. 输出到发往 OBS 的 WebRTC 媒体流
+                            audioDest = audioCtx.createMediaStreamDestination();
+                            highCutFilter.connect(audioDest);
+
+                            processedAudioTrack = audioDest.stream.getAudioTracks()[0];
+                            console.log('[Bridge WebRTC] 🎙️ Web Audio DSP 音频管线已成功建立！输出采样率:', audioCtx.sampleRate);
+
+                            // 若已有预设参数，立即应用
+                            if (window.__activeAudioParams) {
+                                window.__setViduAudioParams(window.__activeAudioParams);
+                            }
+
+                            return processedAudioTrack;
+                        } catch(err) {
+                            console.error('[Bridge WebRTC] 建立 Web Audio DSP 失败，回退原生音轨:', err);
+                            return inputTrack;
+                        }
+                    }
+
+                    // 动态更新音频 DSP 参数控制器 (供插件实时调用)
+                    window.__setViduAudioParams = function(params) {
+                        window.__activeAudioParams = params;
+                        if (!params || !audioCtx) return;
+                        if (audioCtx.state === 'suspended') {
+                            audioCtx.resume().catch(() => {});
+                        }
+                        const t = audioCtx.currentTime;
+                        const rampTime = 0.06; // 60ms 平滑渐变，消除破音与喀哒声
+
+                        const isEnabled = params.enabled !== false;
+                        const targetWet = isEnabled ? (params.wet !== undefined ? params.wet : 0.5) : 0.0;
+                        const targetDry = isEnabled ? (params.dry !== undefined ? params.dry : 0.8) : 1.0;
+                        const roomSize = (params.roomSize !== undefined) ? Math.min(0.98, Math.max(0.0, params.roomSize)) : 0.8;
+                        const dampening = (params.dampening !== undefined) ? Math.min(1.0, Math.max(0.0, params.dampening)) : 0.3;
+                        const lowCut = params.lowCut || 80;
+                        const highCut = params.highCut || 8000;
+                        const monitor = !!params.monitor_local;
+
+                        if (wetGain) wetGain.gain.setTargetAtTime(targetWet, t, rampTime);
+                        if (dryGain) dryGain.gain.setTargetAtTime(targetDry, t, rampTime);
+
+                        // 梳状滤波器反馈与阻尼平滑调整
+                        const fbVal = 0.70 + roomSize * 0.26;
+                        const dampFreq = 12000 - dampening * 10500;
+
+                        combFilters.forEach(cf => {
+                            if (cf.feedback) cf.feedback.gain.setTargetAtTime(fbVal, t, rampTime);
+                            if (cf.dampFilter) cf.dampFilter.frequency.setTargetAtTime(dampFreq, t, rampTime);
+                        });
+
+                        if (lowCutFilter) lowCutFilter.frequency.setTargetAtTime(lowCut, t, rampTime);
+                        if (highCutFilter) highCutFilter.frequency.setTargetAtTime(highCut, t, rampTime);
+                        if (monitorGain) monitorGain.gain.setTargetAtTime(monitor ? 1.0 : 0.0, t, rampTime);
+
+                        console.log('[Bridge WebRTC] 🎛️ 音频参数更新: wet=' + targetWet + ', dry=' + targetDry + ', room=' + roomSize + ', damp=' + dampening);
+                    };
 
                     // =================== 核心黑科技：WebRTC 帧级安全审核马赛克发生器 ===================
                     let maskCanvas = null;
@@ -2019,15 +2256,17 @@
                             console.log('[Bridge -> ' + clientId + '] 送入视频轨道:', window.__safetyMaskEnabled ? '🛡️ 30fps 马赛克安全审核帧' : '🎥 原始数字人画面');
                         }
 
-                        // 送入音频轨道（若处于安全审核中则静音）
-                        info.tracks.filter(t => t.kind === 'audio').forEach(track => {
+                        // 送入经过 Web Audio DSP 空间混响处理的音频轨道（若处于安全审核中则静音）
+                        const rawAudio = info.tracks.find(t => t.kind === 'audio');
+                        const finalAudio = rawAudio ? setupAudioDSP(rawAudio) : null;
+                        if (finalAudio) {
                             if (window.__safetyMaskEnabled) {
-                                track.enabled = false;
+                                finalAudio.enabled = false;
                             }
-                            outStream.addTrack(track);
-                            pc.addTrack(track, outStream);
-                            console.log('[Bridge -> ' + clientId + '] 送入音频轨道 (静音: ' + window.__safetyMaskEnabled + ')');
-                        });
+                            outStream.addTrack(finalAudio);
+                            pc.addTrack(finalAudio, outStream);
+                            console.log('[Bridge -> ' + clientId + '] 送入经过 DSP 处理的空间音效音频轨道 (静音: ' + window.__safetyMaskEnabled + ')');
+                        }
 
                         pc.onicecandidate = (event) => {
                             if (event.candidate && ws && ws.readyState === WebSocket.OPEN) {
@@ -2130,6 +2369,14 @@
                         wv.executeJavaScript(`if (typeof window.__setSafetyMask === 'function') window.__setSafetyMask(true);`);
                     } catch(e) {}
                 }, 600);
+            }
+
+            if (currentAudioDSPParams) {
+                setTimeout(() => {
+                    try {
+                        wv.executeJavaScript(`if (typeof window.__setViduAudioParams === 'function') window.__setViduAudioParams(${JSON.stringify(currentAudioDSPParams)});`);
+                    } catch(e) {}
+                }, 750);
             }
         }
 

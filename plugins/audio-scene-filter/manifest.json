@@ -1,0 +1,9 @@
+{
+  "id": "audio-scene-filter",
+  "name": "🎙️ 场景音色/空间混响滤镜",
+  "version": "1.0.0",
+  "description": "基于 Freeverb 经典空间混响算法，为不同数字人角色/场景绑定专属环境音色 (如鲸洗洗浴室回声、卧室温暖近讲、空旷大厅、复古收音机)，支持动态模板编辑与平滑热切",
+  "author": "Antigravity & User",
+  "entry": "index.js",
+  "ui": "ui.html"
+}

@@ -1,0 +1,74 @@
+{
+  "enabled": true,
+  "monitor_local": false,
+  "active_preset": "bathroom",
+  "bindings": [
+    {
+      "avatarId": "3538368383246553",
+      "avatarName": "鲸洗洗",
+      "presetKey": "bathroom"
+    },
+    {
+      "avatarId": "3531288731656683",
+      "avatarName": "鲸睡睡",
+      "presetKey": "bedroom"
+    },
+    {
+      "avatarId": "3514101839684654",
+      "avatarName": "小雅",
+      "presetKey": "direct"
+    }
+  ],
+  "presets": {
+    "bathroom": {
+      "name": "🛁 浴室空间 (鲸洗洗专属)",
+      "roomSize": 0.85,
+      "dampening": 0.22,
+      "wet": 0.58,
+      "dry": 0.76,
+      "lowCut": 90,
+      "highCut": 6800,
+      "desc": "硬质瓷砖墙壁反射，高频回音湿润清亮，极具沉浸洗澡场景感"
+    },
+    "bedroom": {
+      "name": "🛏️ 卧室微暖 (鲸睡睡近讲)",
+      "roomSize": 0.28,
+      "dampening": 0.82,
+      "wet": 0.12,
+      "dry": 0.98,
+      "lowCut": 60,
+      "highCut": 12000,
+      "desc": "织物床品强吸音，极微量泛音，人声亲切温暖自然"
+    },
+    "hall": {
+      "name": "🏛️ 空旷大礼堂 (舞台演出)",
+      "roomSize": 0.94,
+      "dampening": 0.35,
+      "wet": 0.65,
+      "dry": 0.60,
+      "lowCut": 100,
+      "highCut": 8000,
+      "desc": "高挑空旷大厅，长尾音衰减，气势开阔宏大"
+    },
+    "radio": {
+      "name": "📻 复古电台/对讲机",
+      "roomSize": 0.10,
+      "dampening": 0.90,
+      "wet": 0.05,
+      "dry": 1.0,
+      "lowCut": 420,
+      "highCut": 3400,
+      "desc": "截断高低频模拟老式磁带广播与对讲机质感"
+    },
+    "direct": {
+      "name": "🎙️ 纯净原声直出 (直播录音棚)",
+      "roomSize": 0.0,
+      "dampening": 1.0,
+      "wet": 0.0,
+      "dry": 1.0,
+      "lowCut": 40,
+      "highCut": 16000,
+      "desc": "零混响原声直通，最真实的人声清晰度"
+    }
+  }
+}

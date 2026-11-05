@@ -782,6 +782,10 @@ function createWindow() {
 
     mainWindow.loadFile(path.join(__dirname, 'public', 'desktop-app.html'));
 
+    mainWindow.webContents.on('console-message', (e, level, msg, line, sourceId) => {
+        console.log(`[Renderer Console L${level}] ${msg} (${sourceId}:${line})`);
+    });
+
     mainWindow.webContents.on('did-finish-load', async () => {
         const autoAuth = await autoLoadPersistedCredentials(viduSession);
         mainWindow.webContents.send('init-data', {
@@ -793,9 +797,10 @@ function createWindow() {
         });
 
         if (process.env.AUTO_TEST && process.env.AUTO_TEST.trim() === '1') {
-            const ARTIFACT_DIR = 'C:\\Users\\robin\\.gemini\\antigravity\\brain\\3dcac64b-6340-4875-8002-a5babf441d69';
-            console.log('[AUTO_TEST] 开始自动化验证流程...');
-            await new Promise(r => setTimeout(r, 2000));
+            try {
+                const ARTIFACT_DIR = 'C:\\Users\\robin\\.gemini\\antigravity\\brain\\3dcac64b-6340-4875-8002-a5babf441d69';
+                console.log('[AUTO_TEST] 开始自动化验证流程...');
+                await new Promise(r => setTimeout(r, 2000));
 
             // 1. 验证凭证自动加载与开播前安全遮罩处于隐藏状态
             const isMaskInitiallyHidden = await mainWindow.webContents.executeJavaScript(`
@@ -984,6 +989,22 @@ function createWindow() {
             console.log('[AUTO_TEST] 截图 6: 插件独立大窗口 Modal 验证通过: verified-plugin-modal.png');
             await mainWindow.webContents.executeJavaScript('if (typeof closePluginModal === "function") closePluginModal();');
 
+            // 验证 6.1: 打开音频场景滤镜插件 Modal 并验证 DSP 参数
+            console.log('[AUTO_TEST] 弹出音频场景滤镜插件 Modal...');
+            await mainWindow.webContents.executeJavaScript(`
+                if (typeof openPluginModal === 'function') openPluginModal('audio-scene-filter', '🎙️ 场景音色/空间混响滤镜');
+            `);
+            await new Promise(r => setTimeout(r, 1800));
+            const audioPluginImg = await mainWindow.webContents.capturePage();
+            fs.writeFileSync(path.join(ARTIFACT_DIR, 'verified-audio-plugin-modal.png'), audioPluginImg.toPNG());
+            console.log('[AUTO_TEST] 截图 6.1: 音频场景滤镜插件已捕获: verified-audio-plugin-modal.png');
+
+            const audioParamsCheck = await mainWindow.webContents.executeJavaScript(`
+                window.ViduPluginBridge ? window.ViduPluginBridge.getAudioParams() : null
+            `);
+            console.log('[AUTO_TEST] 当前全局音频 DSP 参数状态:', JSON.stringify(audioParamsCheck));
+            await mainWindow.webContents.executeJavaScript('if (typeof closePluginModal === "function") closePluginModal();');
+
             // 验证 7: 应急安全审核大方块马赛克遮罩与 OBS 同步
             console.log('[AUTO_TEST] 激活安全审核大方块马赛克遮罩...');
             await mainWindow.webContents.executeJavaScript('toggleSafetyMask();');
@@ -1024,8 +1045,12 @@ function createWindow() {
 
             console.log('[AUTO_TEST] ✅ 所有测试项全部验证通过！正在安全退出...');
             app.quit();
+        } catch (autoErr) {
+            console.error('[AUTO_TEST ERROR] 自动化测试异常:', autoErr.stack || autoErr);
+            app.quit();
         }
-    });
+    }
+});
 }
 
 app.whenReady().then(createWindow);
