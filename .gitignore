@@ -1,4 +1,5 @@
 node_modules/
 /config.json
+test-artifacts/
 .DS_Store
 Thumbs.db

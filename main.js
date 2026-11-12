@@ -798,7 +798,8 @@ function createWindow() {
 
         if (process.env.AUTO_TEST && process.env.AUTO_TEST.trim() === '1') {
             try {
-                const ARTIFACT_DIR = 'C:\\Users\\robin\\.gemini\\antigravity\\brain\\3dcac64b-6340-4875-8002-a5babf441d69';
+                const ARTIFACT_DIR = process.env.ARTIFACT_DIR || path.join(__dirname, 'test-artifacts');
+                if (!fs.existsSync(ARTIFACT_DIR)) fs.mkdirSync(ARTIFACT_DIR, { recursive: true });
                 console.log('[AUTO_TEST] 开始自动化验证流程...');
                 await new Promise(r => setTimeout(r, 2000));
 
